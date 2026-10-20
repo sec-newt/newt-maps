@@ -21,7 +21,7 @@ fun geoUri(place: LinkResult.Place): String {
  * 0.00005, which map apps can't parse as a coordinate). At most 6 decimal places;
  * trailing zeros and a trailing dot are trimmed.
  */
-private fun formatCoord(value: Double): String =
+internal fun formatCoord(value: Double): String =
     String.format(Locale.US, "%.6f", value).trimEnd('0').trimEnd('.')
 
 /**

@@ -4,6 +4,14 @@
     <!-- No permissions, and no internet access. Before adding one, add it to
          config/allowed-permissions.txt with a comment saying why; the build fails otherwise. -->
 
+    <!-- Lets the app see which installed apps open map (geo:) links, for the picker. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="geo" />
+        </intent>
+    </queries>
+
     <application
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"

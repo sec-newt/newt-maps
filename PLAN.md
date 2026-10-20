@@ -100,7 +100,9 @@ Small pieces, each testable on its own:
    the address on `doUpdateVisitedHistory`/`onPageFinished`) never saw a rewrite and timed
    out. The one allowed fix — polling the `WebView`'s live URL as a fallback, and a longer
    20s timeout — still failed: it caught a rewrite, but to a placeholder `@0,0` world view,
-   not the place that was searched for. There is no **Ask Google** button; **Open in
+   not the place that was searched for. A third try turned on DOM storage (off by default
+   in a `WebView`, and Google Maps needs it) and removed the WebView marker from the
+   User-Agent: still no coordinates. There is no **Ask Google** button; **Open in
    browser** is the only way out of "Couldn't find it".
 5. **`MapApps`** asks Android which installed apps open `geo:` links (`<queries>` for the
    `geo` scheme), so whatever build is installed shows up (`app.organicmaps`,

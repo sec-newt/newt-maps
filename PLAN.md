@@ -18,9 +18,9 @@ install.
   Maps has its own map.
 - **Low vision first:** the place name and coordinates in big type, big buttons, 7:1
   contrast, works at 200% text.
-- **Private by default.** Nothing goes to Google unless I tap **Ask Google**. Short links
-  only ever contact the link's own company (Google or Apple), and only to follow the
-  redirect.
+- **Private by default.** Nothing goes to Google at all ("Ask Google" was tried on the CI
+  emulator and dropped — see § How it works, item 4). Short links only ever contact the
+  link's own company (Google or Apple), and only to follow the redirect.
 
 ## Most links have no location in them
 
@@ -39,7 +39,7 @@ So a link goes through up to four steps, stopping as soon as it has a place:
    search text is sent). If nothing comes back, try again with the business name dropped,
    starting from the house number ("The Catch 5949 Broadway Blvd…" → "5949 Broadway
    Blvd…"). The place name from the link is kept for the picker.
-4. **Still nothing** → "Couldn't find it", with **Ask Google** and **Open in browser**.
+4. **Still nothing** → "Couldn't find it", with **Open in browser**.
 
 **Tested 2026-10-19 on my real links:** Nominatim found 4 of 5 as-is and the 5th once the
 business name was dropped. House-number results were 55–140 m from the county's address
@@ -91,14 +91,17 @@ Small pieces, each testable on its own:
    zeus. The Nominatim version sends `q`, `format=jsonv2`, `limit=1`, `countrycodes=us`,
    with a User-Agent naming the app (Nominatim's usage policy), at most one request per
    second, and no other data. It includes the retry without the business name.
-4. **`GoogleLookup`**: the **Ask Google** button. It loads the link in a hidden `WebView`
-   (no saved cookies, cleared afterwards), waits for Google's page to rewrite its own
-   address into the `…/@lat,lng` or `!3d…!4d…` form, reads the coordinates from that
-   address, and closes. It gives up after 15 seconds. **To prove first:** a plain fetch of
-   Google's page has no place coordinates in it (tested 2026-10-19: the only coordinates
-   in the page were Google's guess at *my* location from my IP), so this only works if the
-   address rewrite really happens in a `WebView`. Prove it on the emulator before building
-   the screens around it. If it doesn't work, drop the button and keep **Open in browser**.
+4. **Ask Google: tried and dropped.** The plan was a `GoogleLookup` that loaded the link
+   in a hidden `WebView` (no saved cookies), waited for Google's page to rewrite its own
+   address into the `…/@lat,lng` form, and read the coordinates from that address — because
+   a plain fetch of Google's page has no place coordinates in it (tested 2026-10-19: the
+   only coordinates in the page were Google's guess at *my* location from my IP). **Proven
+   on the CI emulator 2026-10-20: it doesn't work.** The first attempt (15s timeout, reading
+   the address on `doUpdateVisitedHistory`/`onPageFinished`) never saw a rewrite and timed
+   out. The one allowed fix — polling the `WebView`'s live URL as a fallback, and a longer
+   20s timeout — still failed: it caught a rewrite, but to a placeholder `@0,0` world view,
+   not the place that was searched for. There is no **Ask Google** button; **Open in
+   browser** is the only way out of "Couldn't find it".
 5. **`MapApps`** asks Android which installed apps open `geo:` links (`<queries>` for the
    `geo` scheme), so whatever build is installed shows up (`app.organicmaps`,
    `app.comaps` / `app.comaps.fdroid`, `com.generalmagic.magicearth`, OsmAnd). Known map
@@ -114,8 +117,8 @@ Permissions: `INTERNET`, and nothing else.
   **Open in browser**. While a link is being resolved or looked up: "Reading link…" or
   "Looking up the address…".
 - **Couldn't find it:** says why in plain words ("No location in this link", "No
-  internet", "Nothing found for this address"), then **Ask Google** (says it sends the
-  link to Google) and **Open in browser**, so there's always a way out.
+  internet", "Nothing found for this address"), then **Open in browser**, so there's
+  always a way out.
 - **No map app installed:** says so, and still offers Copy and Open in browser.
 - **Home** (opened from the launcher): the **Turn on link opening** card while it's
   needed, and a short "how to use this" line.
@@ -129,7 +132,6 @@ Permissions: `INTERNET`, and nothing else.
   another company (must stop), too many hops, a timeout, and an `http` hop (must stop).
 - **`Geocoder`** against a fake server: a hit, a miss then a hit on the retry, two misses,
   no internet. The retry's "drop the business name" rule gets its own unit tests.
-- **`GoogleLookup`** proven by hand on the emulator first (see above).
 - **Screenshots** of every screen in light, dark and 200% text (`newtScreenshot()`).
 - **On the emulator:** each handoff lands in the map app at the right place, at least
   with Organic Maps.

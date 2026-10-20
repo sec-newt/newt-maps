@@ -5,15 +5,31 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import io.github.secnewt.maps.link.LinkResult
+import java.util.Locale
 
 data class MapApp(val packageName: String, val label: String)
 
 /** geo:lat,lng?q=lat,lng(name) — the form Organic Maps, CoMaps, Magic Earth and OsmAnd all read. */
 fun geoUri(place: LinkResult.Place): String {
-    val at = "${place.lat},${place.lng}"
-    val label = place.name?.let { "(${Uri.encode(it)})" } ?: ""
+    val at = "${formatCoord(place.lat)},${formatCoord(place.lng)}"
+    val label = place.name?.let { "(${encodeName(it)})" } ?: ""
     return "geo:$at?q=$at$label"
 }
+
+/**
+ * Plain decimal, never scientific notation (Double.toString() would emit "5.0E-5" for
+ * 0.00005, which map apps can't parse as a coordinate). At most 6 decimal places;
+ * trailing zeros and a trailing dot are trimmed.
+ */
+private fun formatCoord(value: Double): String =
+    String.format(Locale.US, "%.6f", value).trimEnd('0').trimEnd('.')
+
+/**
+ * Uri.encode's default "safe" set leaves '(' and ')' unescaped, which would corrupt the
+ * (name) group in the query string (e.g. a name containing "(Downtown)").
+ */
+private fun encodeName(name: String): String =
+    Uri.encode(name).replace("(", "%28").replace(")", "%29")
 
 /** The installed apps that open geo: links, known map apps first. Newt Maps leaves itself out. */
 class MapApps(private val context: Context) {

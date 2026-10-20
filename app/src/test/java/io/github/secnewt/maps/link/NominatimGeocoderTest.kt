@@ -49,11 +49,17 @@ class NominatimGeocoderTest {
         assertEquals(1, t.asked.size)
     }
 
-    @Test fun offline() = assertEquals(
-        GeoResult.NoInternet,
-        NominatimGeocoder(FakeTransport { throw IOException("offline") }, clock = { 0 }, sleep = {}).find("4402 Broadway Blvd"),
-    )
+    @Test fun offline() {
+        val t = FakeTransport { throw IOException("offline") }
+        assertEquals(GeoResult.NoInternet, NominatimGeocoder(t, clock = { 0 }, sleep = {}).find("4402 Broadway Blvd"))
+        assertEquals(1, t.asked.size)
+    }
 
     @Test fun garbageAnswerIsNotFound() =
         assertEquals(GeoResult.NotFound, NominatimGeocoder(FakeTransport { "<html>" }, clock = { 0 }, sleep = {}).find("4402 Broadway Blvd"))
+
+    @Test fun serverErrorIsNotFoundNotOffline() = assertEquals(
+        GeoResult.NotFound,
+        NominatimGeocoder(FakeTransport { throw HttpStatusException(503) }, clock = { 0 }, sleep = {}).find("4402 Broadway Blvd"),
+    )
 }

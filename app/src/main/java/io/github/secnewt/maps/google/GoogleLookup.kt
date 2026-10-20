@@ -36,6 +36,7 @@ class GoogleLookup(private val context: Context) {
         }
         webView = view
         main.postDelayed(::timeout, TIMEOUT_MS)
+        main.postDelayed(::poll, POLL_MS)
         view.loadUrl(link)
     }
 
@@ -52,6 +53,15 @@ class GoogleLookup(private val context: Context) {
         if (result is LinkResult.Place) finish(result)
     }
 
+    // Belt and suspenders: Google's page rewrites its address with the History API
+    // (replaceState), and doUpdateVisitedHistory doesn't reliably fire for that on every
+    // WebView build. Polling view.url catches the rewrite even when the callback doesn't.
+    private fun poll() {
+        val view = webView ?: return
+        check(view.url ?: return)
+        main.postDelayed(::poll, POLL_MS)
+    }
+
     private fun timeout() = finish(null)
 
     private fun finish(place: LinkResult.Place?) {
@@ -60,5 +70,8 @@ class GoogleLookup(private val context: Context) {
         callback(place)
     }
 
-    companion object { const val TIMEOUT_MS = 15_000L }
+    companion object {
+        const val TIMEOUT_MS = 20_000L
+        const val POLL_MS = 500L
+    }
 }

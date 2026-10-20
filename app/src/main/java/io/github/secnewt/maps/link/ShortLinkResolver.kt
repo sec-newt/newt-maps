@@ -24,8 +24,9 @@ sealed interface Resolved {
 class ShortLinkResolver(private val fetcher: HopFetcher = HttpHopFetcher()) {
 
     fun resolve(url: String): Resolved {
-        val company = companyOf(url) ?: return Resolved.Failed(Reason.LEFT_COMPANY)
-        var current = url
+        val startUrl = httpsEntry(url) ?: return Resolved.Failed(Reason.NOT_HTTPS)
+        val company = companyOf(startUrl) ?: return Resolved.Failed(Reason.LEFT_COMPANY)
+        var current = startUrl
         repeat(MAX_HOPS) {
             val hop = try {
                 fetcher.fetch(current)
@@ -46,6 +47,24 @@ class ShortLinkResolver(private val fetcher: HopFetcher = HttpHopFetcher()) {
             current = next
         }
         return Resolved.Failed(Reason.TOO_MANY_HOPS)
+    }
+
+    /**
+     * Accepts an https entry URL as-is; upgrades a plain http entry URL to https (same
+     * host/path/query — plain HTTP is never sent). Any other scheme, or no scheme, is rejected
+     * before any fetch happens.
+     */
+    private fun httpsEntry(url: String): String? {
+        val uri = try { URI(url) } catch (_: Exception) { return null }
+        return when (uri.scheme?.lowercase()) {
+            "https" -> url
+            "http" -> try {
+                URI("https", uri.userInfo, uri.host, uri.port, uri.path, uri.query, uri.fragment).toString()
+            } catch (_: Exception) {
+                null
+            }
+            else -> null
+        }
     }
 
     private fun companyOf(url: String): Set<String>? {

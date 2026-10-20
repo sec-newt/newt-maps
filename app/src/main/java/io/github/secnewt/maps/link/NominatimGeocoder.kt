@@ -42,6 +42,8 @@ class NominatimGeocoder(
         val url = "$BASE_URL?q=${URLEncoder.encode(text, Charsets.UTF_8)}&format=jsonv2&limit=1&countrycodes=us"
         val body = try {
             transport.get(url)
+        } catch (_: HttpStatusException) {
+            return GeoResult.NotFound
         } catch (_: IOException) {
             return GeoResult.NoInternet
         }
@@ -60,6 +62,9 @@ class NominatimGeocoder(
     companion object {
         const val BASE_URL = "https://nominatim.openstreetmap.org/search"
         private const val MIN_GAP_MS = 1_000L
+
+        // Nominatim's 1 request/second limit is per app, so the app shares one instance.
+        val shared: NominatimGeocoder by lazy { NominatimGeocoder() }
     }
 }
 
@@ -71,7 +76,7 @@ class HttpTransport : Transport {
             connection.readTimeout = TIMEOUT_MS
             connection.setRequestProperty("User-Agent", HttpHopFetcher.USER_AGENT)
             val status = connection.responseCode
-            if (status !in 200..299) throw IOException("Nominatim answered $status")
+            if (status !in 200..299) throw HttpStatusException(status)
             return connection.inputStream.bufferedReader().use { it.readText() }
         } finally {
             connection.disconnect()

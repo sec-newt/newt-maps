@@ -50,6 +50,15 @@ class MapAppsTest {
 
     @Test fun geoUriWithoutName() = assertEquals("geo:32.91,-96.63?q=32.91,-96.63", geoUri(Place(32.91, -96.63)))
 
+    @Test fun geoUriEscapesParentheses() =
+        assertEquals(
+            "geo:32.91,-96.63?q=32.91,-96.63(Joe's%20Pizza%20%28Downtown%29)",
+            geoUri(Place(32.91, -96.63, "Joe's Pizza (Downtown)")),
+        )
+
+    @Test fun geoUriNeverScientific() =
+        assertEquals("geo:0.00005,-96.63?q=0.00005,-96.63", geoUri(Place(0.00005, -96.63)))
+
     @Test fun handoffTargetsTheChosenApp() {
         val intent = MapApps(context).handoff(Place(32.91, -96.63, "X"), MapApp("app.organicmaps", "Organic Maps"))
         assertEquals(Intent.ACTION_VIEW, intent.action)

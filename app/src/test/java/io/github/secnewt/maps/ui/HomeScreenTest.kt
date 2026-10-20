@@ -2,6 +2,8 @@ package io.github.secnewt.maps.ui
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.takahirom.roborazzi.RobolectricDeviceQualifiers
@@ -22,8 +24,9 @@ class HomeScreenTest {
     @Test fun needsTurningOnDark() {
         composeRule.newtScreenshot("home-turnon-dark", dark = true) { HomeScreen(linksNeedTurningOn = true, onTurnOn = {}) }
         composeRule.onNodeWithText("Turn on link opening").assertIsDisplayed()
-        // The debug build adds " (test)" to the name, so match the start.
-        composeRule.onNodeWithText("Newt Maps", substring = true).assertIsDisplayed()
+        // The heading comes first; the debug build adds " (test)" to it, and "Share → Newt Maps"
+        // also matches, so check the first match.
+        composeRule.onAllNodesWithText("Newt Maps", substring = true).onFirst().assertIsDisplayed()
     }
 
     @Test fun needsTurningOnLight() =

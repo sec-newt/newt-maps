@@ -19,8 +19,28 @@ object LinkReader {
 
     private val GOOGLE_HOSTS = setOf("google.com", "www.google.com", "maps.google.com")
 
-    fun firstLink(text: String): String? =
-        LINK.find(text)?.value?.trimEnd('.', ',', ')', ']', '!', '?', ';', ':', '"', '\'')
+    fun firstLink(text: String): String? = LINK.find(text)?.value?.let(::trimTrailingPunctuation)
+
+    /**
+     * Drops trailing punctuation a link picked up from surrounding prose (a closing
+     * parenthesis from "(see https://...)", a period ending a sentence). A `)` or `]` stays
+     * when it balances an opening `(` or `[` earlier in the link itself — needed for geo:
+     * labels like `q=32.91,-96.63(Church)`, whose closing paren is part of the link.
+     */
+    private fun trimTrailingPunctuation(link: String): String {
+        var result = link
+        while (result.isNotEmpty()) {
+            val last = result.last()
+            val keep = when (last) {
+                ')' -> result.count { it == '(' } >= result.count { it == ')' }
+                ']' -> result.count { it == '[' } >= result.count { it == ']' }
+                else -> last !in ".,!?;:\"'"
+            }
+            if (keep) break
+            result = result.dropLast(1)
+        }
+        return result
+    }
 
     fun isShortLink(url: String): Boolean {
         val uri = parse(url) ?: return false

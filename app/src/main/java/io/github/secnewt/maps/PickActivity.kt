@@ -13,11 +13,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import io.github.secnewt.maps.google.GoogleLookup
 import io.github.secnewt.maps.handoff.MapApps
 import io.github.secnewt.maps.link.LinkPipeline
 import io.github.secnewt.maps.link.LinkReader
 import io.github.secnewt.maps.link.LinkResult
 import io.github.secnewt.maps.link.Outcome
+import io.github.secnewt.maps.link.Why
 import io.github.secnewt.maps.ui.PickerScreen
 import io.github.secnewt.maps.ui.PickerState
 import io.github.secnewt.maps.ui.coordinates
@@ -29,6 +31,7 @@ import kotlinx.coroutines.withContext
 class PickActivity : ComponentActivity() {
 
     private val pipeline = LinkPipeline()
+    private var googleLookup: GoogleLookup? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -50,6 +53,7 @@ class PickActivity : ComponentActivity() {
                             canOpenBrowser = outcome.link != null && !outcome.link.startsWith("geo:"),
                             searchText = outcome.searchText,
                             apps = if (outcome.searchText != null) apps.installed() else emptyList(),
+                            canAskGoogle = outcome.link != null && outcome.why != Why.NO_INTERNET && isGoogle(outcome.link),
                         )
                     }
                 }
@@ -70,10 +74,33 @@ class PickActivity : ComponentActivity() {
                             finish()
                         }
                     },
+                    onAskGoogle = {
+                        val failed = state as? PickerState.Failed
+                        if (failed != null && link != null) {
+                            state = PickerState.Working("Asking Google…")
+                            googleLookup = GoogleLookup(this).also { lookup ->
+                                lookup.start(link) { found ->
+                                    state = if (found != null) {
+                                        PickerState.Ready(found.copy(name = found.name ?: failed.searchText), apps.installed())
+                                    } else {
+                                        failed.copy(why = Why.NOTHING_FOUND, canAskGoogle = false)
+                                    }
+                                }
+                            }
+                        }
+                    },
                 )
             }
         }
     }
+
+    override fun onDestroy() {
+        googleLookup?.cancel()
+        super.onDestroy()
+    }
+
+    private fun isGoogle(link: String) =
+        Uri.parse(link).host?.let { it.endsWith("google.com") || it.endsWith("goo.gl") } == true
 
     private fun copy(place: LinkResult.Place) {
         getSystemService(ClipboardManager::class.java)

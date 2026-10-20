@@ -8,3 +8,7 @@
 # Added automatically by AndroidX so the app's own broadcast receivers stay private:
 io.github.secnewt.maps.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION
 io.github.secnewt.maps.debug.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION
+
+# Follow Google/Apple short links and look up text-only links on Nominatim (OpenStreetMap).
+# Nothing else goes out.
+android.permission.INTERNET

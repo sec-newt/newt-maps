@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Internet: to follow short links (Google/Apple only), look up text-only links on
-         Nominatim, and "Ask Google" when the user taps it. Listed in config/allowed-permissions.txt. -->
+    <!-- Internet: to follow short links (Google/Apple only) and look up text-only links on
+         Nominatim. Listed in config/allowed-permissions.txt. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
     <!-- Lets the app see which installed apps open map (geo:) links, for the picker. -->

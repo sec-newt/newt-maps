@@ -37,30 +37,3 @@ jobs:
       packages: read
       actions: read
       security-events: write
-
-  # Newt Maps only: proves "Ask Google" against the real Google page on an emulator.
-  google-probe:
-    name: Ask Google probe
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
-    needs: newt
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
-        with:
-          name: newt-maps-test-apk
-      - name: Enable KVM
-        run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-      - name: Ask Google for a text-only link
-        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2
-        with:
-          api-level: 34
-          target: google_apis
-          arch: x86_64
-          disable-animations: true
-          script: bash scripts/emulator-google-probe.sh

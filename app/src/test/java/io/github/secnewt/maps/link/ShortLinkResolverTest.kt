@@ -69,4 +69,17 @@ class ShortLinkResolverTest {
         val web = FakeWeb(mapOf("https://maps.app.goo.gl/a" to Hop(200, null)))
         assertEquals(Failed(Reason.NO_REDIRECT), ShortLinkResolver(web).resolve("https://maps.app.goo.gl/a"))
     }
+
+    @Test fun httpStartIsUpgraded() {
+        val full = "https://www.google.com/maps/@32.9,-96.6,17z"
+        val web = FakeWeb(mapOf("https://maps.app.goo.gl/a" to Hop(302, full)))
+        assertEquals(To(full), ShortLinkResolver(web).resolve("http://maps.app.goo.gl/a"))
+        assertEquals(listOf("https://maps.app.goo.gl/a"), web.asked)
+    }
+
+    @Test fun nonHttpStartStops() {
+        val web = FakeWeb(emptyMap())
+        assertEquals(Failed(Reason.NOT_HTTPS), ShortLinkResolver(web).resolve("ftp://maps.app.goo.gl/a"))
+        assertEquals(emptyList<String>(), web.asked)
+    }
 }

@@ -52,12 +52,12 @@ class LinkPipelineTest {
     )
 
     @Test fun nothingFoundKeepsTheLink() = assertEquals(
-        Outcome.NotFound(Why.NOTHING_FOUND, "https://maps.google.com/?q=nowhere+special"),
+        Outcome.NotFound(Why.NOTHING_FOUND, "https://maps.google.com/?q=nowhere+special", "nowhere special"),
         LinkPipeline(noNetwork, FakeGeocoder(GeoResult.NotFound)).run("look: https://maps.google.com/?q=nowhere+special"),
     )
 
     @Test fun geocoderOffline() = assertEquals(
-        Outcome.NotFound(Why.NO_INTERNET, "https://maps.google.com/?q=4402+Broadway+Blvd"),
+        Outcome.NotFound(Why.NO_INTERNET, "https://maps.google.com/?q=4402+Broadway+Blvd", "4402 Broadway Blvd"),
         LinkPipeline(noNetwork, FakeGeocoder(GeoResult.NoInternet)).run("https://maps.google.com/?q=4402+Broadway+Blvd"),
     )
 

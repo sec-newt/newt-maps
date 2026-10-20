@@ -21,6 +21,9 @@ fun geoUri(place: LinkResult.Place): String {
  * 0.00005, which map apps can't parse as a coordinate). At most 6 decimal places;
  * trailing zeros and a trailing dot are trimmed.
  */
+/** geo:0,0?q=<text> — the standard "search for this" form, as GeoShare uses. */
+fun geoSearchUri(text: String): String = "geo:0,0?q=${Uri.encode(text)}"
+
 internal fun formatCoord(value: Double): String =
     String.format(Locale.US, "%.6f", value).trimEnd('0').trimEnd('.')
 
@@ -46,6 +49,10 @@ class MapApps(private val context: Context) {
 
     fun handoff(place: LinkResult.Place, app: MapApp): Intent =
         Intent(Intent.ACTION_VIEW, Uri.parse(geoUri(place))).setPackage(app.packageName)
+
+    /** When the address couldn't be found: let the map app run its own search on the text. */
+    fun search(text: String, app: MapApp): Intent =
+        Intent(Intent.ACTION_VIEW, Uri.parse(geoSearchUri(text))).setPackage(app.packageName)
 
     companion object {
         val KNOWN = listOf(

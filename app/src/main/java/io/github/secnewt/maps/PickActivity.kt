@@ -48,6 +48,8 @@ class PickActivity : ComponentActivity() {
                         is Outcome.NotFound -> PickerState.Failed(
                             outcome.why,
                             canOpenBrowser = outcome.link != null && !outcome.link.startsWith("geo:"),
+                            searchText = outcome.searchText,
+                            apps = if (outcome.searchText != null) apps.installed() else emptyList(),
                         )
                     }
                 }
@@ -62,6 +64,12 @@ class PickActivity : ComponentActivity() {
                     },
                     onCopy = { place?.let(::copy) },
                     onOpenBrowser = { link?.let(::openInBrowser) },
+                    onSearchIn = { app ->
+                        (state as? PickerState.Failed)?.searchText?.let {
+                            startActivity(apps.search(it, app))
+                            finish()
+                        }
+                    },
                 )
             }
         }

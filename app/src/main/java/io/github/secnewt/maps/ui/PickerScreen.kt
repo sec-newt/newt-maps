@@ -28,7 +28,13 @@ import io.github.secnewt.ui.neonOutline
 sealed interface PickerState {
     data class Working(val message: String) : PickerState
     data class Ready(val place: LinkResult.Place, val apps: List<MapApp>) : PickerState
-    data class Failed(val why: Why, val canOpenBrowser: Boolean) : PickerState
+    /** [searchText] + [apps]: offer "Search in <app>" so a failed lookup never does less than handing the text over. */
+    data class Failed(
+        val why: Why,
+        val canOpenBrowser: Boolean,
+        val searchText: String? = null,
+        val apps: List<MapApp> = emptyList(),
+    ) : PickerState
 }
 
 fun whyText(why: Why): String = when (why) {
@@ -47,6 +53,7 @@ fun PickerScreen(
     onOpenIn: (MapApp) -> Unit,
     onCopy: () -> Unit,
     onOpenBrowser: () -> Unit,
+    onSearchIn: (MapApp) -> Unit = {},
 ) {
     Scaffold { padding ->
         Column(
@@ -63,7 +70,7 @@ fun PickerScreen(
                     Text(state.message, style = MaterialTheme.typography.headlineSmall)
                 }
                 is PickerState.Ready -> Ready(state, onOpenIn, onCopy, onOpenBrowser)
-                is PickerState.Failed -> Failed(state, onOpenBrowser)
+                is PickerState.Failed -> Failed(state, onOpenBrowser, onSearchIn)
             }
         }
     }
@@ -87,10 +94,16 @@ private fun Ready(state: PickerState.Ready, onOpenIn: (MapApp) -> Unit, onCopy: 
 }
 
 @Composable
-private fun Failed(state: PickerState.Failed, onOpenBrowser: () -> Unit) {
+private fun Failed(state: PickerState.Failed, onOpenBrowser: () -> Unit, onSearchIn: (MapApp) -> Unit) {
     Heading("Couldn't find it")
     Text(whyText(state.why), style = MaterialTheme.typography.titleLarge)
-    if (state.canOpenBrowser) BigButton("Open in browser", primary = true, onClick = onOpenBrowser)
+    state.searchText?.let { text ->
+        if (state.apps.isNotEmpty()) Text("Search for \"$text\" in:", style = MaterialTheme.typography.bodyLarge)
+        state.apps.forEach { app -> BigButton("Search in ${app.label}", primary = true) { onSearchIn(app) } }
+    }
+    if (state.canOpenBrowser) {
+        BigButton("Open in browser", primary = state.searchText == null || state.apps.isEmpty(), onClick = onOpenBrowser)
+    }
 }
 
 @Composable

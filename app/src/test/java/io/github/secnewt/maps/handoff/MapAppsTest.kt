@@ -59,6 +59,12 @@ class MapAppsTest {
     @Test fun geoUriNeverScientific() =
         assertEquals("geo:0.00005,-96.63?q=0.00005,-96.63", geoUri(Place(0.00005, -96.63)))
 
+    @Test fun searchHandsTheTextToTheChosenApp() {
+        val intent = MapApps(context).search("The Catch 5949 Broadway Blvd", MapApp("app.organicmaps", "Organic Maps"))
+        assertEquals("app.organicmaps", intent.`package`)
+        assertEquals("geo:0,0?q=The%20Catch%205949%20Broadway%20Blvd", intent.dataString)
+    }
+
     @Test fun handoffTargetsTheChosenApp() {
         val intent = MapApps(context).handoff(Place(32.91, -96.63, "X"), MapApp("app.organicmaps", "Organic Maps"))
         assertEquals(Intent.ACTION_VIEW, intent.action)

@@ -4,7 +4,8 @@ enum class Why { NO_LINK, NO_LOCATION, NO_INTERNET, NOTHING_FOUND }
 
 sealed interface Outcome {
     data class Found(val place: LinkResult.Place) : Outcome
-    data class NotFound(val why: Why, val link: String?) : Outcome
+    /** [searchText]: the text a text-only link carried, so the picker can offer it to a map app's own search. */
+    data class NotFound(val why: Why, val link: String?, val searchText: String? = null) : Outcome
 }
 
 /** The four steps from PLAN.md: read → follow short link → look up text → give up with the link. */
@@ -28,8 +29,8 @@ class LinkPipeline(
             is LinkResult.Place -> Outcome.Found(result)
             is LinkResult.Search -> when (val found = geocoder.find(result.text)) {
                 is GeoResult.Found -> Outcome.Found(LinkResult.Place(found.lat, found.lng, name = result.name ?: result.text))
-                GeoResult.NotFound -> Outcome.NotFound(Why.NOTHING_FOUND, link)
-                GeoResult.NoInternet -> Outcome.NotFound(Why.NO_INTERNET, link)
+                GeoResult.NotFound -> Outcome.NotFound(Why.NOTHING_FOUND, link, result.text)
+                GeoResult.NoInternet -> Outcome.NotFound(Why.NO_INTERNET, link, result.text)
             }
             is LinkResult.Short, LinkResult.Unreadable -> Outcome.NotFound(Why.NO_LOCATION, link)
         }

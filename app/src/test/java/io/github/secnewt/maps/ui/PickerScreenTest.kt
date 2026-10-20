@@ -73,6 +73,22 @@ class PickerScreenTest {
         composeRule.onNodeWithText("Open in browser").assertIsDisplayed()
     }
 
+    private val failedWithSearch = PickerState.Failed(
+        Why.NOTHING_FOUND, canOpenBrowser = true, searchText = "The Catch 5949 Broadway Blvd", apps = apps,
+    )
+
+    @Test fun failedWithSearchDark() {
+        var searched: MapApp? = null
+        composeRule.setContent {
+            PickerScreen(failedWithSearch, onOpenIn = {}, onCopy = {}, onOpenBrowser = {}, onSearchIn = { searched = it })
+        }
+        composeRule.onNodeWithText("Search in Organic Maps").performScrollTo().performClick()
+        assertEquals("app.organicmaps", searched?.packageName)
+    }
+
+    @Test fun failedWithSearchLargeText() =
+        composeRule.newtScreenshot("picker-failed-search-200pct", dark = true, fontScale = 2f) { screen(failedWithSearch) }
+
     @Test fun failedLight() = composeRule.newtScreenshot("picker-failed-light", dark = false) { screen(failed) }
 
     @Test fun failedLargeText() =

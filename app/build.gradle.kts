@@ -12,11 +12,11 @@ val buildNumber = System.getenv("VERSION_CODE")?.toInt() ?: 1
 val releaseKeystore = System.getenv("SIGNING_KEYSTORE_PATH")
 
 android {
-    namespace = "io.github.secnewt.template"
+    namespace = "io.github.secnewt.maps"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "io.github.secnewt.template"
+        applicationId = "io.github.secnewt.maps"
         // Android 13: apps' one-color (monochrome) icons, which Newt Home tints in Newt colors.
         // Lower it only if a feature needs an older phone, and say why here.
         minSdk = 33

@@ -1,4 +1,4 @@
-package io.github.secnewt.template.ui
+package io.github.secnewt.maps.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -15,7 +15,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import io.github.secnewt.template.R
+import io.github.secnewt.maps.R
 
 /** The starter screen. Replace it with the app's first real screen. */
 @Composable

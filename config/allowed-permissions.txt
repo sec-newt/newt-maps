@@ -6,5 +6,5 @@
 # Add each one with a comment above it saying what it's for, in plain words.
 #
 # Added automatically by AndroidX so the app's own broadcast receivers stay private:
-io.github.secnewt.template.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION
-io.github.secnewt.template.debug.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION
+io.github.secnewt.maps.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION
+io.github.secnewt.maps.debug.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION

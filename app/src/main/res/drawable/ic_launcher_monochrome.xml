@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Single-color version for Android's themed icons: the newt and a plain badge, no colors.
+     Put the app's badge symbol here too, in white. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group android:translateX="20" android:translateY="20" android:scaleX="0.68" android:scaleY="0.68">
+        <path android:fillColor="#FFFFFFFF" android:fillType="evenOdd" android:pathData="M46,10.5 C52,10.5 57,14 56.5,20 C56,25 53,27.5 53.5,30 C56,34 56,48 53.5,54 C52,62 49,70 44,76 C38,82 28,87 19,84.5 C13,83 10.5,79 12,75.5 C15,78 21,79 27,77 C33,75 38,70 40.5,62 C41,58 39.5,56 38.5,54 C36,48 36,34 38.5,30 C39,27.5 36,25 35.5,20 C35,14 40,10.5 46,10.5 Z M39.3,17.5 a2.2,2.2 0 1,0 4.4,0 a2.2,2.2 0 1,0 -4.4,0 Z M48.3,17.5 a2.2,2.2 0 1,0 4.4,0 a2.2,2.2 0 1,0 -4.4,0 Z" />
+        <path android:fillColor="#FFFFFFFF" android:pathData="M21.6,25.7 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0 Z M23.7,22.6 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0 Z M26.7,22.5 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0 Z M66.4,25.7 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0 Z M64.3,22.6 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0 Z M61.3,22.5 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0 Z M24.1,59.3 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0 Z M26.2,62.4 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0 Z M29.2,62.5 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0 Z M63.9,59.3 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0 Z M61.8,62.4 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0 Z M58.8,62.5 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0 Z" />
+        <path android:pathData="M40,33 Q32,32 27,26" android:strokeWidth="5" android:strokeLineCap="round" android:strokeColor="#FFFFFFFF" />
+        <path android:pathData="M52,33 Q60,32 65,26" android:strokeWidth="5" android:strokeLineCap="round" android:strokeColor="#FFFFFFFF" />
+        <path android:pathData="M40.5,50 Q33,52 29.5,59" android:strokeWidth="5" android:strokeLineCap="round" android:strokeColor="#FFFFFFFF" />
+        <path android:pathData="M51.5,50 Q59,52 62.5,59" android:strokeWidth="5" android:strokeLineCap="round" android:strokeColor="#FFFFFFFF" />
+        <path android:fillColor="#FFFFFFFF" android:pathData="M58,75 a17,17 0 1,0 34,0 a17,17 0 1,0 -34,0 Z" />
+    </group>
+</vector>

@@ -1,0 +1,39 @@
+name: Build APK
+
+# The build itself is shared by every Newt app: see newt-app.yml in
+# https://github.com/sec-newt/newt-android-lib. It runs the tests, screenshots,
+# accessibility checks, lint, secret scan and permission check, builds the test APK,
+# and publishes a signed release from main.
+
+on:
+  # Pushes to main build the APK; other branches are checked through their pull request.
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  newt:
+    name: Newt
+    uses: sec-newt/newt-android-lib/.github/workflows/newt-app.yml@ca24dc1e6105d0a41e3213ac1f38a7beb83efb04 # v1.3.1
+    # The app's names, used for the test APK and release files. scripts/new-app.sh sets these.
+    with:
+      app-slug: newt-template
+      app-name: Newt Template
+    secrets:
+      SIGNING_KEYSTORE_BASE64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
+      SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
+    # The most any shared job needs: publishing a release writes, CodeQL reports security
+    # findings. Each job inside newt-app.yml asks only for what it uses.
+    permissions:
+      contents: write
+      packages: read
+      actions: read
+      security-events: write

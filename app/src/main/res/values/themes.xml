@@ -1,0 +1,9 @@
+<resources>
+    <!-- Matches the app's background while it starts, so it never flashes. -->
+    <style name="Theme.Newt" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/newt_background</item>
+        <item name="android:colorBackground">@color/newt_background</item>
+    </style>
+    <!-- Tokyo Night Day background in light mode (true black in values-night). -->
+    <color name="newt_background">#FFFFFF</color>
+</resources>

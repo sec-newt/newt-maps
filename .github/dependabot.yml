@@ -1,0 +1,27 @@
+# Opens pull requests when dependencies have updates or security fixes.
+# Each update must pass every check before it can be merged.
+#
+# Dependabot waits 3 days after a release before offering it (a "cooldown"), so a
+# hijacked or broken release has time to be noticed. That wait stays for everything
+# from outside, but not for the Newt library or the shared Newt build: those are ours,
+# and every release passes its own checks before it's published.
+version: 2
+updates:
+  - package-ecosystem: gradle
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      exclude: ["io.github.secnewt*"]
+    groups:
+      gradle-dependencies:
+        patterns: ["*"]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      exclude: ["sec-newt/*"]
+    groups:
+      github-actions:
+        patterns: ["*"]

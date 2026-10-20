@@ -1,0 +1,4 @@
+<resources>
+    <!-- Tokyo Night on true black. -->
+    <color name="newt_background">#050608</color>
+</resources>

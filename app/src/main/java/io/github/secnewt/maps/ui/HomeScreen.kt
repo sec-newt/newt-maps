@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -31,7 +32,13 @@ fun linkHostsAllOn(context: Context): Boolean {
 }
 
 @Composable
-fun HomeScreen(linksNeedTurningOn: Boolean, onTurnOn: () -> Unit, onBack: (() -> Unit)? = null) {
+fun HomeScreen(
+    linksNeedTurningOn: Boolean,
+    onTurnOn: () -> Unit,
+    onBack: (() -> Unit)? = null,
+    practice: Boolean = false,
+    onPractice: (Boolean) -> Unit = {},
+) {
     Scaffold { padding ->
         Column(
             modifier = Modifier
@@ -66,6 +73,27 @@ fun HomeScreen(linksNeedTurningOn: Boolean, onTurnOn: () -> Unit, onBack: (() ->
                 style = MaterialTheme.typography.bodyLarge,
             )
             if (onBack != null) {
+                androidx.compose.foundation.layout.Row(
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 64.dp)
+                        .toggleable(value = practice, role = androidx.compose.ui.semantics.Role.Switch, onValueChange = onPractice),
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Practice drives", style = MaterialTheme.typography.titleLarge)
+                        Text(
+                            "Directions drive the route by themselves, so you can try navigation without moving.",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    androidx.compose.material3.Switch(checked = practice, onCheckedChange = null)
+                }
+                Text(
+                    "Routes come from your own server on persephone, over Tailscale.",
+                    style = MaterialTheme.typography.bodyLarge,
+                )
                 Text(
                     "The map comes from OpenFreeMap, using OpenStreetMap data. It sees which area you look at, not who you are. " +
                         "Search uses OpenStreetMap's Nominatim and sends only what you type.",

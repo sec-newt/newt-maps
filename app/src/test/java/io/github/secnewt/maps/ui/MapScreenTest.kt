@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -37,11 +38,58 @@ class MapScreenTest {
     private val place = MapCard.Place("The Catch, 5949 Broadway Blvd", 32.86791, -96.63412)
 
     @Composable
-    private fun Screen(card: MapCard?, onZoomIn: () -> Unit = {}, onClose: () -> Unit = {}) = MapScreen(
+    private fun Screen(
+        card: MapCard?,
+        onZoomIn: () -> Unit = {},
+        onClose: () -> Unit = {},
+        preview: RoutePreview? = null,
+        guidance: Guidance? = null,
+        onStart: () -> Unit = {},
+        onDirections: (MapCard.Place) -> Unit = {},
+    ) = MapScreen(
         map = { Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) },
         card = card, searching = false, onSearch = {}, onZoomIn = onZoomIn, onZoomOut = {}, onMyLocation = {},
-        onSettings = {}, onCloseCard = onClose,
+        onSettings = {}, onCloseCard = onClose, preview = preview, guidance = guidance, onStart = onStart, onDirections = onDirections,
     )
+
+    private val preview = RoutePreview("The Catch, 5949 Broadway Blvd", "12 min", "4.3 mi", "3:45 PM", avoidTolls = true, practice = false)
+    private val guidance = Guidance(
+        turn = io.github.secnewt.maps.nav.Turn.RIGHT, distance = "0.3 mi", road = "Broadway Boulevard",
+        spoken = "Turn right onto Broadway Boulevard.", then = "Then Main Street", timeLeft = "9 min", distanceLeft = "3.8 mi",
+        arrival = "3:45 PM", muted = false, rerouting = false, practice = false,
+    )
+
+    @Test fun previewDark() = composeRule.newtScreenshot("route-preview-dark", dark = true) { Screen(null, preview = preview) }
+    @Test fun previewLargeText() = composeRule.newtScreenshot("route-preview-200pct", dark = false, fontScale = 2f) { Screen(null, preview = preview.copy(practice = true)) }
+    @Test fun drivingDark() = composeRule.newtScreenshot("driving-dark", dark = true) { Screen(null, guidance = guidance) }
+    @Test fun drivingLight() = composeRule.newtScreenshot("driving-light", dark = false) { Screen(null, guidance = guidance.copy(muted = true, then = null)) }
+    @Test fun drivingLargeText() = composeRule.newtScreenshot("driving-200pct", dark = true, fontScale = 2f) { Screen(null, guidance = guidance.copy(rerouting = true)) }
+
+    @Test
+    fun directionsAsksForARoute() {
+        var routed: MapCard.Place? = null
+        composeRule.setContent { NewtTheme(darkTheme = true) { Screen(place, onDirections = { routed = it }) } }
+        composeRule.onNodeWithContentDescription("Directions").performClick()
+        assertEquals(place, routed)
+    }
+
+    @Test
+    fun startBeginsTheDrive() {
+        var started = false
+        composeRule.setContent { NewtTheme(darkTheme = true) { Screen(null, preview = preview, onStart = { started = true }) } }
+        composeRule.onNodeWithText("12 min · 4.3 mi").assertIsDisplayed()
+        composeRule.onNodeWithText("Start").performClick()
+        assertEquals(true, started)
+    }
+
+    @Test
+    fun drivingSaysTheTurnInOneSentence() {
+        composeRule.setContent { NewtTheme(darkTheme = true) { Screen(null, guidance = guidance) } }
+        composeRule.onNodeWithContentDescription("In 0.3 mi: Turn right onto Broadway Boulevard.").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Stop navigation").assertIsDisplayed()
+        // Nothing else on the map while driving.
+        assertEquals(0, composeRule.onAllNodesWithContentDescription("Zoom in").fetchSemanticsNodes().size)
+    }
 
     @Test fun plainDark() = composeRule.newtScreenshot("map-plain-dark", dark = true) { Screen(null) }
     @Test fun streetDark() = composeRule.newtScreenshot("map-street-dark", dark = true) { Screen(street) }

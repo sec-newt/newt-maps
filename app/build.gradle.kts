@@ -87,6 +87,9 @@ dependencies {
     // The map: MapLibre draws OpenStreetMap vector tiles (BSD license, no Google, no tracking).
     implementation(libs.maplibre)
     implementation(libs.androidx.lifecycle.runtime.compose)
+    // Turn-by-turn: Ferrostar (BSD) routes with Valhalla and speaks each turn.
+    implementation(libs.ferrostar.core)
+    implementation(libs.okhttp)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
 

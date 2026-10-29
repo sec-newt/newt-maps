@@ -43,6 +43,64 @@ class MapController {
         map?.animateCamera(CameraUpdateFactory.newLatLngZoom(LatLng(lat, lng), 16.0), 600)
     }
 
+    /** Draw a route ([points] as lat, lng) and fit it on screen. */
+    fun showRoute(points: List<Pair<Double, Double>>) {
+        if (points.size < 2) return
+        val line = org.maplibre.geojson.LineString.fromLngLats(points.map { (lat, lng) -> Point.fromLngLat(lng, lat) })
+        style?.getSourceAs<GeoJsonSource>(MapStyle.ROUTE_SOURCE)?.setGeoJson(line)
+        val bounds = org.maplibre.android.geometry.LatLngBounds.Builder().includes(points.map { (lat, lng) -> LatLng(lat, lng) }).build()
+        // Room at the top for the search box and at the bottom for the route card.
+        map?.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds, 80, 260, 80, 700), 600)
+    }
+
+    fun clearRoute() {
+        style?.getSourceAs<GeoJsonSource>(MapStyle.ROUTE_SOURCE)?.setGeoJson(org.maplibre.geojson.FeatureCollection.fromFeatures(emptyList()))
+    }
+
+    /**
+     * Driving: the arrow shows where navigation says I am (snapped to the road), and the map
+     * follows it, turning so the road ahead points up.
+     */
+    @SuppressLint("MissingPermission")
+    fun startDriving(context: Context, color: Int) {
+        val map = map ?: return
+        val style = style ?: return
+        val location = map.locationComponent
+        if (!location.isLocationComponentActivated) {
+            location.activateLocationComponent(
+                LocationComponentActivationOptions.builder(context, style)
+                    .locationComponentOptions(puck(context, color))
+                    .useDefaultLocationEngine(false)
+                    .build(),
+            )
+        }
+        location.locationEngine = null
+        location.isLocationComponentEnabled = true
+        location.renderMode = org.maplibre.android.location.modes.RenderMode.GPS
+        location.setCameraMode(CameraMode.TRACKING_GPS, 600L, 17.0, null, null, null)
+    }
+
+    /** Move the arrow while driving. */
+    fun drivingAt(where: android.location.Location) {
+        map?.locationComponent?.takeIf { it.isLocationComponentActivated }?.forceLocationUpdate(where)
+    }
+
+    /** Back to a north-up map that doesn't follow. */
+    fun stopDriving(context: Context) {
+        val location = map?.locationComponent?.takeIf { it.isLocationComponentActivated } ?: return
+        location.setCameraMode(CameraMode.NONE)
+        location.renderMode = org.maplibre.android.location.modes.RenderMode.NORMAL
+        location.locationEngine = org.maplibre.android.location.engine.LocationEngineDefault.getDefaultLocationEngine(context)
+        map?.animateCamera(CameraUpdateFactory.bearingTo(0.0), 400)
+    }
+
+    private fun puck(context: Context, color: Int) = LocationComponentOptions.builder(context)
+        .foregroundTintColor(color)
+        .bearingTintColor(color)
+        .accuracyColor(color)
+        .accuracyAlpha(0.15f)
+        .build()
+
     fun clearPlace() {
         style?.getSourceAs<GeoJsonSource>(MapStyle.PLACE_SOURCE)?.setGeoJson(org.maplibre.geojson.FeatureCollection.fromFeatures(emptyList()))
     }
@@ -57,18 +115,16 @@ class MapController {
         val style = style ?: return false
         val location = map.locationComponent
         if (!location.isLocationComponentActivated) {
-            val options = LocationComponentOptions.builder(context)
-                .foregroundTintColor(color)
-                .bearingTintColor(color)
-                .accuracyColor(color)
-                .accuracyAlpha(0.15f)
-                .build()
             location.activateLocationComponent(
                 LocationComponentActivationOptions.builder(context, style)
-                    .locationComponentOptions(options)
+                    .locationComponentOptions(puck(context, color))
                     .useDefaultLocationEngine(true)
                     .build(),
             )
+        }
+        // After a drive the arrow was fed by navigation; give it the phone's location again.
+        if (location.locationEngine == null) {
+            location.locationEngine = org.maplibre.android.location.engine.LocationEngineDefault.getDefaultLocationEngine(context)
         }
         location.isLocationComponentEnabled = true
         location.setCameraMode(CameraMode.TRACKING, 600L, 16.0, null, null, null)

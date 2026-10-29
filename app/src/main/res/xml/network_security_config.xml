@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Everything is HTTPS, except the route server on persephone, which is reached over
+     Tailscale (already encrypted) and only speaks plain HTTP. Keep in step with
+     nav/RouteServer.kt. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">100.113.230.33</domain>
+    </domain-config>
+</network-security-config>

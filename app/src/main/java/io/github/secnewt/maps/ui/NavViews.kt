@@ -117,7 +117,8 @@ internal fun PreviewCard(preview: RoutePreview, onStart: () -> Unit, onToggleTol
                 NavIconButton(Icons.Filled.Close, "Close", onClose)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                NavIconButton(NewtIcons.Toll, "Avoid tolls", onToggleTolls, on = preview.avoidTolls)
+                // Words here: no toll icon is clear enough on its own.
+                TollToggle(preview.avoidTolls, onToggleTolls)
                 // The one action that matters here: big, green, with its word.
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
@@ -135,6 +136,31 @@ internal fun PreviewCard(preview: RoutePreview, onStart: () -> Unit, onToggleTol
                 }
             }
         }
+    }
+}
+
+/** "No tolls", filled with the gradient when on. Tapping it finds the route again. */
+@Composable
+private fun TollToggle(on: Boolean, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(16.dp)
+    val fill = Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.secondary))
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .heightIn(min = 64.dp)
+            .clip(shape)
+            .then(if (on) Modifier.background(fill) else Modifier.background(MaterialTheme.colorScheme.surface))
+            .border(neonOutline(2.dp), shape)
+            .clickable(onClickLabel = if (on) "Allow tolls" else "Avoid tolls", role = Role.Switch, onClick = onClick)
+            .semantics { stateDescription = if (on) "On" else "Off" }
+            .padding(horizontal = 14.dp),
+    ) {
+        Text(
+            "No tolls",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = if (on) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
+        )
     }
 }
 

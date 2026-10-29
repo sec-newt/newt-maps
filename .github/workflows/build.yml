@@ -63,8 +63,9 @@ jobs:
           api-level: 34
           target: default
           arch: x86_64
+          profile: pixel_6
           disable-animations: true
-          emulator-options: -no-window -gpu guest -no-snapshot -noaudio -no-boot-anim
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           script: bash scripts/emulator-map-screenshots.sh
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         if: always()

@@ -2,6 +2,10 @@
 # Screenshots of the real map on an emulator: dark, light, 200% text, and a tapped street.
 # The map needs real graphics and internet (OpenFreeMap tiles), so it can't be done in the
 # Robolectric tests. Run by the "Emulator map screenshots" job; pictures land in shots/.
+#
+# The emulator's software graphics can't draw map text, so street names are missing from
+# these pictures even though MapLibre places them. The app logs how many it placed, and the
+# job fails if that ever drops to zero. Judge how the names look on the phone.
 set -euo pipefail
 APK=$(ls ./*.apk | head -1)
 PKG=io.github.secnewt.maps.debug
@@ -42,3 +46,8 @@ sleep 25; shot map-dark-zoomed-out
 
 # MapLibre's own messages (style, tile and font loading), to explain anything missing above.
 adb logcat -d | grep -iE "maplibre|mbgl|glyph|NewtMap" > shots/maplibre-log.txt || true
+
+# Street names were placed on the map (they just can't be drawn here).
+if ! grep -qE "NewtMap.*idle: [1-9][0-9]* street labels" shots/maplibre-log.txt; then
+  echo "::error::No street names were placed on the map"; exit 1
+fi

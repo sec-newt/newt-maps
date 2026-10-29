@@ -122,6 +122,13 @@ fun NewtMap(
                 // The "i" credit button stays: OpenStreetMap's license asks for the credit.
                 isLogoEnabled = false
             }
+            // For the emulator test's log: how many street names are on screen once drawing settles.
+            mapView.addOnDidBecomeIdleListener {
+                val all = RectF(0f, 0f, mapView.width.toFloat(), mapView.height.toFloat())
+                android.util.Log.i("NewtMap", "idle: ${map.queryRenderedFeatures(all, "street-names").size} street labels, " +
+                    "${map.queryRenderedFeatures(all, MapStyle.STREET_HIT_LAYER).size} named roads, layers ${map.style?.layers?.size}")
+            }
+            mapView.addOnDidFailLoadingMapListener { error -> android.util.Log.w("NewtMap", "map failed to load: $error") }
             map.addOnMapClickListener { point ->
                 val screen = map.projection.toScreenLocation(point)
                 val reach = 24 * context.resources.displayMetrics.density
@@ -143,6 +150,7 @@ fun NewtMap(
     // A new look when the theme or the phone's text size changes.
     LaunchedEffect(dark, textScale) {
         mapView.getMapAsync { map ->
+            android.util.Log.i("NewtMap", "setting style dark=$dark scale=$textScale")
             map.setStyle(Style.Builder().fromJson(MapStyle.json(dark, textScale))) { style -> controller.style = style }
         }
     }

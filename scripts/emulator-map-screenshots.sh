@@ -41,4 +41,4 @@ adb shell am start -W -n "$PKG/io.github.secnewt.maps.MainActivity" --ed lat 32.
 sleep 25; shot map-dark-zoomed-out
 
 # MapLibre's own messages (style, tile and font loading), to explain anything missing above.
-adb logcat -d | grep -iE "maplibre|mbgl|glyph" > shots/maplibre-log.txt || true
+adb logcat -d | grep -iE "maplibre|mbgl|glyph|NewtMap" > shots/maplibre-log.txt || true

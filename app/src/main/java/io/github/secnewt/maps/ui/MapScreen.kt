@@ -102,19 +102,21 @@ fun MapScreen(
             return@Box
         }
         SearchBar(searching, onSearch, onSettings, Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(12.dp))
+        // The buttons sit right above the card, so a tall card (big text) pushes them up
+        // instead of covering them.
         Column(
             verticalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.align(Alignment.CenterEnd).padding(end = 12.dp),
+            horizontalAlignment = Alignment.End,
+            modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(12.dp),
         ) {
             MapButton(Icons.Filled.Add, "Zoom in", onZoomIn)
             MapButton(NewtIcons.ZoomOut, "Zoom out", onZoomOut)
             MapButton(NewtIcons.MyLocation, "Where am I", onMyLocation)
-        }
-        val bottom = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(12.dp)
-        if (preview != null) {
-            PreviewCard(preview, onStart, onToggleTolls, onClosePreview, bottom)
-        } else if (card != null) {
-            CardView(card, onCloseCard, onShare, onCopy, onOpenElsewhere, onDirections, bottom)
+            if (preview != null) {
+                PreviewCard(preview, onStart, onToggleTolls, onClosePreview)
+            } else if (card != null) {
+                CardView(card, onCloseCard, onShare, onCopy, onOpenElsewhere, onDirections, Modifier)
+            }
         }
     }
 }

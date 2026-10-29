@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Internet: to follow short links (Google/Apple only) and look up text-only links on
          Nominatim. Listed in config/allowed-permissions.txt. -->
@@ -7,6 +8,8 @@
     <!-- "Where am I" on the map. Asked for only when that button is first tapped. -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- MapLibre asks for Wi-Fi state; the map works without it, so it's taken back out. -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" tools:node="remove" />
 
     <!-- Lets the app see which installed apps open map (geo:) links, for the picker. -->
     <queries>

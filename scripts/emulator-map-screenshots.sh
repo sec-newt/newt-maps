@@ -6,6 +6,7 @@ set -euo pipefail
 APK=$(ls ./*.apk | head -1)
 PKG=io.github.secnewt.maps.debug
 mkdir -p shots
+adb logcat -c
 adb install -r "$APK"
 # Main Street, Garland: the screen's center is on the street, so a tap there finds it.
 open_map() {
@@ -38,3 +39,6 @@ adb shell cmd uimode night yes
 adb shell am force-stop "$PKG"
 adb shell am start -W -n "$PKG/io.github.secnewt.maps.MainActivity" --ed lat 32.9126413 --ed lng -96.6329141 --ed zoom 13.0
 sleep 25; shot map-dark-zoomed-out
+
+# MapLibre's own messages (style, tile and font loading), to explain anything missing above.
+adb logcat -d | grep -iE "maplibre|mbgl|glyph" > shots/maplibre-log.txt || true

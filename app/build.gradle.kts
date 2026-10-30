@@ -84,6 +84,9 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
     implementation(libs.androidx.material.icons.core)
+    // The map: MapLibre draws OpenStreetMap vector tiles (BSD license, no Google, no tracking).
+    implementation(libs.maplibre)
+    implementation(libs.androidx.lifecycle.runtime.compose)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
 

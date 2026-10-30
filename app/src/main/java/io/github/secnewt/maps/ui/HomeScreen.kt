@@ -31,7 +31,7 @@ fun linkHostsAllOn(context: Context): Boolean {
 }
 
 @Composable
-fun HomeScreen(linksNeedTurningOn: Boolean, onTurnOn: () -> Unit) {
+fun HomeScreen(linksNeedTurningOn: Boolean, onTurnOn: () -> Unit, onBack: (() -> Unit)? = null) {
     Scaffold { padding ->
         Column(
             modifier = Modifier
@@ -41,12 +41,16 @@ fun HomeScreen(linksNeedTurningOn: Boolean, onTurnOn: () -> Unit) {
                 .padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text(
-                stringResource(R.string.app_name),
-                style = MaterialTheme.typography.headlineLarge,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.semantics { heading() },
-            )
+            if (onBack != null) {
+                io.github.secnewt.ui.ScreenHeader("Settings", onBack)
+            } else {
+                Text(
+                    stringResource(R.string.app_name),
+                    style = MaterialTheme.typography.headlineLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.semantics { heading() },
+                )
+            }
             if (linksNeedTurningOn) {
                 Text(
                     "Google and Apple Maps links open in their own apps until you turn this on. It's one time.",
@@ -61,6 +65,13 @@ fun HomeScreen(linksNeedTurningOn: Boolean, onTurnOn: () -> Unit) {
                 "Tap a maps link, or Share → Newt Maps. Then pick the map app to open it in.",
                 style = MaterialTheme.typography.bodyLarge,
             )
+            if (onBack != null) {
+                Text(
+                    "The map comes from OpenFreeMap, using OpenStreetMap data. It sees which area you look at, not who you are. " +
+                        "Search uses OpenStreetMap's Nominatim and sends only what you type.",
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+            }
         }
     }
 }

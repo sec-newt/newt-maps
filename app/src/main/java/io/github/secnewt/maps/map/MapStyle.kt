@@ -22,22 +22,28 @@ object MapStyle {
     /** The place a search or link found, drawn as a big dot. */
     const val PLACE_SOURCE = "place"
 
+    /** The route being previewed or driven, drawn as a thick green line. */
+    const val ROUTE_SOURCE = "route"
+
     private class Colors(
         val background: String, val water: String, val park: String, val building: String,
         val highway: String, val main: String, val street: String, val small: String,
         val label: String, val halo: String, val placeLabel: String, val place: String, val placeRing: String,
+        val route: String,
     )
 
     private val Dark = Colors(
         background = "#050608", water = "#16304F", park = "#0F2216", building = "#1C1F2B",
         highway = "#FF9E64", main = "#E0AF68", street = "#C0CAF5", small = "#6B7299",
         label = "#FFFFFF", halo = "#000000", placeLabel = "#7DCFFF", place = "#FF7A93", placeRing = "#FFFFFF",
+        route = "#9ECE6A",
     )
 
     private val Light = Colors(
         background = "#F2F3F7", water = "#9CC3EE", park = "#CFE6C4", building = "#DADCE5",
         highway = "#B15C00", main = "#8C6C3E", street = "#343B58", small = "#8990B3",
         label = "#0B0C10", halo = "#FFFFFF", placeLabel = "#0F4B6E", place = "#D20F39", placeRing = "#FFFFFF",
+        route = "#1E7A34",
     )
 
     /**
@@ -57,6 +63,21 @@ object MapStyle {
             .put(road("road-street", listOf("minor"), c.street, widths = listOf(12 to 1, 14 to 3, 18 to 14)))
             .put(road("road-main", listOf("primary", "secondary", "tertiary"), c.main, widths = listOf(10 to 1.5, 14 to 5, 18 to 20)))
             .put(road("road-highway", listOf("motorway", "trunk"), c.highway, widths = listOf(6 to 1, 12 to 4, 18 to 24)))
+            // The route: green (no road is green) over a dark edge, under the street names.
+            .put(
+                layer(
+                    "route-edge", "line", source = ROUTE_SOURCE,
+                    layout = obj("line-cap" to "round", "line-join" to "round"),
+                    paint = obj("line-color" to c.halo, "line-width" to zoomed(10 to 8, 18 to 30)),
+                ),
+            )
+            .put(
+                layer(
+                    "route-line", "line", source = ROUTE_SOURCE,
+                    layout = obj("line-cap" to "round", "line-join" to "round"),
+                    paint = obj("line-color" to c.route, "line-width" to zoomed(10 to 5, 18 to 22)),
+                ),
+            )
             // Invisible, wide lines along every named road, so a tap near a street finds it.
             .put(
                 layer(
@@ -111,6 +132,7 @@ object MapStyle {
             "sources" to obj(
                 "openmaptiles" to obj("type" to "vector", "url" to TILES),
                 PLACE_SOURCE to obj("type" to "geojson", "data" to obj("type" to "FeatureCollection", "features" to JSONArray())),
+                ROUTE_SOURCE to obj("type" to "geojson", "data" to obj("type" to "FeatureCollection", "features" to JSONArray())),
             ),
             "layers" to layers,
         ).toString()

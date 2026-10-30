@@ -83,20 +83,40 @@ fun MapScreen(
     onShare: (MapCard.Place) -> Unit = {},
     onCopy: (MapCard.Place) -> Unit = {},
     onOpenElsewhere: (MapCard.Place) -> Unit = {},
+    onDirections: (MapCard.Place) -> Unit = {},
+    /** A found route waiting for Start; replaces the card. */
+    preview: RoutePreview? = null,
+    onStart: () -> Unit = {},
+    onToggleTolls: () -> Unit = {},
+    onClosePreview: () -> Unit = {},
+    /** While driving: the banner and trip bar replace everything else. */
+    guidance: Guidance? = null,
+    onMute: () -> Unit = {},
+    onStop: () -> Unit = {},
 ) {
     Box(Modifier.fillMaxSize()) {
         map()
+        if (guidance != null) {
+            TurnBanner(guidance, Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(12.dp))
+            TripBar(guidance, onMute, onStop, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(12.dp))
+            return@Box
+        }
         SearchBar(searching, onSearch, onSettings, Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(12.dp))
+        // The buttons sit right above the card, so a tall card (big text) pushes them up
+        // instead of covering them.
         Column(
             verticalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.align(Alignment.CenterEnd).padding(end = 12.dp),
+            horizontalAlignment = Alignment.End,
+            modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(12.dp),
         ) {
             MapButton(Icons.Filled.Add, "Zoom in", onZoomIn)
             MapButton(NewtIcons.ZoomOut, "Zoom out", onZoomOut)
             MapButton(NewtIcons.MyLocation, "Where am I", onMyLocation)
-        }
-        if (card != null) {
-            CardView(card, onCloseCard, onShare, onCopy, onOpenElsewhere, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(12.dp))
+            if (preview != null) {
+                PreviewCard(preview, onStart, onToggleTolls, onClosePreview)
+            } else if (card != null) {
+                CardView(card, onCloseCard, onShare, onCopy, onOpenElsewhere, onDirections, Modifier)
+            }
         }
     }
 }
@@ -157,6 +177,7 @@ private fun CardView(
     onShare: (MapCard.Place) -> Unit,
     onCopy: (MapCard.Place) -> Unit,
     onOpenElsewhere: (MapCard.Place) -> Unit,
+    onDirections: (MapCard.Place) -> Unit,
     modifier: Modifier,
 ) {
     Surface(
@@ -190,6 +211,7 @@ private fun CardView(
             }
             if (card is MapCard.Place) {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    MapButton(NewtIcons.Directions, "Directions", { onDirections(card) }, size = 56)
                     MapButton(Icons.Filled.Share, "Share", { onShare(card) }, size = 56)
                     MapButton(NewtIcons.Copy, "Copy coordinates", { onCopy(card) }, size = 56)
                     MapButton(NewtIcons.OpenElsewhere, "Open in another map app", { onOpenElsewhere(card) }, size = 56)

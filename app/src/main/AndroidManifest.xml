@@ -11,6 +11,13 @@
     <!-- MapLibre asks for Wi-Fi state; the map works without it, so it's taken back out. -->
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" tools:node="remove" />
 
+    <!-- Spoken turns: Android 11+ hides the text-to-speech engine unless the app says it uses one. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+    </queries>
+
     <!-- Lets the app see which installed apps open map (geo:) links, for the picker. -->
     <queries>
         <intent>
@@ -20,6 +27,7 @@
     </queries>
 
     <application
+        android:networkSecurityConfig="@xml/network_security_config"
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"

@@ -69,7 +69,7 @@ class MapScreenTest {
     fun directionsAsksForARoute() {
         var routed: MapCard.Place? = null
         composeRule.setContent { NewtTheme(darkTheme = true) { Screen(place, onDirections = { routed = it }) } }
-        composeRule.onNodeWithContentDescription("Directions").performClick()
+        composeRule.onNodeWithText("Directions").performClick()
         assertEquals(place, routed)
     }
 
@@ -111,5 +111,27 @@ class MapScreenTest {
         composeRule.onNodeWithContentDescription("Close").performClick()
         assertEquals(1, zoomed)
         assertEquals(true, closed)
+    }
+
+    @Test
+    fun placeCardButtonsHaveWords() {
+        var routed: MapCard.Place? = null
+        composeRule.setContent { NewtTheme(darkTheme = true) { Screen(place, onDirections = { routed = it }) } }
+        listOf("Share", "Copy", "Open in").forEach { composeRule.onNodeWithText(it).assertIsDisplayed() }
+        composeRule.onNodeWithText("Directions").performClick()
+        assertEquals(place, routed)
+    }
+
+    @Test
+    fun drivingButtonsSayVoiceAndEnd() {
+        composeRule.setContent { NewtTheme(darkTheme = true) { Screen(null, guidance = guidance.copy(muted = true)) } }
+        composeRule.onNodeWithText("Voice off").assertIsDisplayed()
+        composeRule.onNodeWithText("End").assertIsDisplayed()
+    }
+
+    @Test
+    fun aStreetHasNoDirections() {
+        composeRule.setContent { NewtTheme(darkTheme = true) { Screen(street) } }
+        composeRule.onNodeWithText("Directions").assertDoesNotExist()
     }
 }

@@ -1,5 +1,11 @@
 package io.github.secnewt.maps.ui
 
+import io.github.secnewt.ui.NewtButton
+import io.github.secnewt.ui.NewtPrimaryButton
+import io.github.secnewt.ui.NewtTone
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -192,7 +198,16 @@ internal fun TurnBanner(guidance: Guidance, modifier: Modifier = Modifier) {
             if (guidance.rerouting) {
                 Text("Finding a new route…", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.tertiary)
             } else if (guidance.then != null) {
-                Text(guidance.then, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                // The next turn on its own lifted line, so it never competes with this one.
+                Text(
+                    guidance.then,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(12.dp))
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                )
             }
         }
     }
@@ -207,21 +222,31 @@ internal fun TripBar(guidance: Guidance, onMute: () -> Unit, onStop: () -> Unit,
         border = neonOutline(2.dp),
         modifier = modifier.fillMaxWidth(),
     ) {
-        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Column(Modifier.weight(1f)) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(guidance.timeLeft, style = MaterialTheme.typography.headlineMedium, fontFamily = NewtFonts.Mono, fontWeight = FontWeight.Bold)
                 Text(
-                    "${guidance.timeLeft} · ${guidance.distanceLeft}",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                )
-                Text(
-                    if (guidance.practice) "Arrive ${guidance.arrival} · practice" else "Arrive ${guidance.arrival}",
+                    listOfNotNull(guidance.distanceLeft, "arrive ${guidance.arrival}", if (guidance.practice) "practice" else null).joinToString(" · "),
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 4.dp),
                 )
             }
-            NavIconButton(if (guidance.muted) NewtIcons.Muted else NewtIcons.Voice, "Voice", onMute, on = !guidance.muted)
-            NavIconButton(Icons.Filled.Close, "Stop navigation", onStop, danger = true)
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.height(IntrinsicSize.Min)) {
+                if (guidance.muted) {
+                    NewtButton("Voice off", onClick = onMute, icon = NewtIcons.Muted, large = true, modifier = Modifier.weight(1f).fillMaxHeight())
+                } else {
+                    NewtPrimaryButton("Voice on", onClick = onMute, icon = NewtIcons.Voice, large = true, modifier = Modifier.weight(1f).fillMaxHeight())
+                }
+                NewtPrimaryButton(
+                    "End",
+                    onClick = onStop,
+                    icon = Icons.Filled.Close,
+                    tone = NewtTone.Danger,
+                    large = true,
+                    modifier = Modifier.weight(1f).fillMaxHeight().semantics { contentDescription = "Stop navigation" },
+                )
+            }
         }
     }
 }

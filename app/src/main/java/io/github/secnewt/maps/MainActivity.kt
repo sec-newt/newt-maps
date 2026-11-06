@@ -1,5 +1,6 @@
 package io.github.secnewt.maps
 
+import io.github.secnewt.maps.handoff.MapApps
 import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -74,6 +75,7 @@ class MainActivity : ComponentActivity() {
                         onBack = { showSettings = false },
                         practice = practice.value,
                         onPractice = { on -> practice.value = on; navPrefs.edit().putBoolean("practice", on).apply() },
+                        mapApp = remember { MapApps(this@MainActivity).installed().firstOrNull()?.label },
                     )
                 } else {
                     Map(onSettings = { showSettings = true })

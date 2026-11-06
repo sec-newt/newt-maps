@@ -1,5 +1,15 @@
 package io.github.secnewt.maps.ui
 
+import io.github.secnewt.ui.NewtSteps
+import io.github.secnewt.ui.NewtStep
+import io.github.secnewt.ui.NewtStepState
+import io.github.secnewt.ui.NewtPrimaryButton
+import io.github.secnewt.ui.NewtSettingsCard
+import io.github.secnewt.ui.NewtSwitchRow
+import io.github.secnewt.ui.NewtInfo
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.Settings
 import android.content.Context
 import android.content.pm.verify.domain.DomainVerificationManager
 import android.content.pm.verify.domain.DomainVerificationUserState
@@ -31,6 +41,10 @@ fun linkHostsAllOn(context: Context): Boolean {
     return state.hostToStateMap.values.all { it != DomainVerificationUserState.DOMAIN_STATE_NONE }
 }
 
+/**
+ * Setup and settings: numbered steps (a map app, link opening, try it), what happens after,
+ * and in Settings the practice-drive switch. [mapApp] is the first map app found, if any.
+ */
 @Composable
 fun HomeScreen(
     linksNeedTurningOn: Boolean,
@@ -38,6 +52,7 @@ fun HomeScreen(
     onBack: (() -> Unit)? = null,
     practice: Boolean = false,
     onPractice: (Boolean) -> Unit = {},
+    mapApp: String? = null,
 ) {
     Scaffold { padding ->
         Column(
@@ -45,8 +60,8 @@ fun HomeScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             if (onBack != null) {
                 io.github.secnewt.ui.ScreenHeader("Settings", onBack)
@@ -54,51 +69,54 @@ fun HomeScreen(
                 Text(
                     stringResource(R.string.app_name),
                     style = MaterialTheme.typography.headlineLarge,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.semantics { heading() },
                 )
             }
-            if (linksNeedTurningOn) {
-                Text(
-                    "Google and Apple Maps links open in their own apps until you turn this on. It's one time.",
-                    style = MaterialTheme.typography.titleLarge,
-                )
-                Button(onClick = onTurnOn, modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp)) {
-                    Text("Turn on link opening", style = MaterialTheme.typography.titleLarge)
-                }
-                Text("On the next screen: Add links → turn on every link.", style = MaterialTheme.typography.bodyLarge)
-            }
-            Text(
-                "Tap a maps link, or Share → Newt Maps. Then pick the map app to open it in.",
-                style = MaterialTheme.typography.bodyLarge,
+            Text("Open Google and Apple Maps links in the map app you pick.", style = MaterialTheme.typography.bodyLarge)
+            val hasApp = mapApp != null
+            NewtSteps(
+                listOf(
+                    NewtStep(
+                        "Install a map app",
+                        if (hasApp) NewtStepState.Done else NewtStepState.Now,
+                        hint = if (hasApp) "$mapApp found" else "Install Organic Maps, CoMaps or Magic Earth",
+                    ),
+                    NewtStep(
+                        "Turn on link opening",
+                        when {
+                            !linksNeedTurningOn -> NewtStepState.Done
+                            hasApp -> NewtStepState.Now
+                            else -> NewtStepState.ToDo
+                        },
+                        hint = if (linksNeedTurningOn) "One time. Turn on every link on the next screen." else "On",
+                        action = { NewtPrimaryButton("Turn on", onClick = onTurnOn, modifier = Modifier.fillMaxWidth()) },
+                    ),
+                    NewtStep(
+                        "Try it",
+                        if (hasApp && !linksNeedTurningOn) NewtStepState.Now else NewtStepState.ToDo,
+                        hint = "Tap any maps link, or Share → Newt Maps",
+                    ),
+                ),
             )
+            NewtSettingsCard("Then it does this", icon = Icons.Filled.Place) {
+                Text(
+                    "maps.google.com/… → opens in ${mapApp ?: "your map app"}",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                )
+            }
             if (onBack != null) {
-                androidx.compose.foundation.layout.Row(
-                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 64.dp)
-                        .toggleable(value = practice, role = androidx.compose.ui.semantics.Role.Switch, onValueChange = onPractice),
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Practice drives", style = MaterialTheme.typography.titleLarge)
-                        Text(
-                            "Directions drive the route by themselves, so you can try navigation without moving.",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    androidx.compose.material3.Switch(checked = practice, onCheckedChange = null)
+                NewtSettingsCard("Driving", icon = Icons.Filled.Settings) {
+                    NewtSwitchRow("Practice drives", practice, onPractice, hint = "Drives the route by itself, so you can try it")
+                    NewtInfo(
+                        "Routes come from your own server on persephone, over Tailscale. The map comes from OpenFreeMap, " +
+                            "using OpenStreetMap data; it sees which area you look at, not who you are. Search uses " +
+                            "OpenStreetMap's Nominatim and sends only what you type.",
+                        label = "Where maps and routes come from",
+                    )
                 }
-                Text(
-                    "Routes come from your own server on persephone, over Tailscale.",
-                    style = MaterialTheme.typography.bodyLarge,
-                )
-                Text(
-                    "The map comes from OpenFreeMap, using OpenStreetMap data. It sees which area you look at, not who you are. " +
-                        "Search uses OpenStreetMap's Nominatim and sends only what you type.",
-                    style = MaterialTheme.typography.bodyLarge,
-                )
             }
         }
     }

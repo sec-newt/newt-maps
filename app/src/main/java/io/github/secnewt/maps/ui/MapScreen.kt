@@ -1,5 +1,10 @@
 package io.github.secnewt.maps.ui
 
+import io.github.secnewt.ui.NewtButton
+import io.github.secnewt.ui.NewtPrimaryButton
+import io.github.secnewt.ui.NewtTone
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -210,11 +215,20 @@ private fun CardView(
                 MapButton(Icons.Filled.Close, "Close", onClose, size = 56)
             }
             if (card is MapCard.Place) {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    MapButton(NewtIcons.Directions, "Directions", { onDirections(card) }, size = 56)
-                    MapButton(Icons.Filled.Share, "Share", { onShare(card) }, size = 56)
-                    MapButton(NewtIcons.Copy, "Copy coordinates", { onCopy(card) }, size = 56)
-                    MapButton(NewtIcons.OpenElsewhere, "Open in another map app", { onOpenElsewhere(card) }, size = 56)
+                // Directions is the one big green button; the rest say what they do.
+                NewtPrimaryButton(
+                    "Directions",
+                    onClick = { onDirections(card) },
+                    icon = NewtIcons.Directions,
+                    tone = NewtTone.Good,
+                    large = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                @OptIn(ExperimentalLayoutApi::class)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    NewtButton("Share", onClick = { onShare(card) }, icon = Icons.Filled.Share)
+                    NewtButton("Copy", onClick = { onCopy(card) }, icon = NewtIcons.Copy, modifier = Modifier.semantics { contentDescription = "Copy coordinates" })
+                    NewtButton("Open in", onClick = { onOpenElsewhere(card) }, icon = NewtIcons.OpenElsewhere, modifier = Modifier.semantics { contentDescription = "Open in another map app" })
                 }
             }
         }

@@ -14,6 +14,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.role
+import io.github.secnewt.maps.search.SearchHit
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -61,7 +68,10 @@ sealed interface MapCard {
     data class Street(val name: String, val kind: String?, val ref: String?) : MapCard
 
     /** A place a search or link found. */
-    data class Place(val name: String, val lat: Double, val lng: Double) : MapCard
+    data class Place(val name: String, val lat: Double, val lng: Double, val address: String? = null) : MapCard
+
+    /** Everything a search found, nearest first-ish; tap one to see it. */
+    data class Results(val query: String, val hits: List<SearchHit>, val shortenedTo: String? = null) : MapCard
 
     /** Something went wrong or needs saying ("Couldn't find that"). */
     data class Note(val text: String) : MapCard
@@ -89,6 +99,7 @@ fun MapScreen(
     onCopy: (MapCard.Place) -> Unit = {},
     onOpenElsewhere: (MapCard.Place) -> Unit = {},
     onDirections: (MapCard.Place) -> Unit = {},
+    onPick: (SearchHit) -> Unit = {},
     /** A found route waiting for Start; replaces the card. */
     preview: RoutePreview? = null,
     onStart: () -> Unit = {},
@@ -106,21 +117,27 @@ fun MapScreen(
             TripBar(guidance, onMute, onStop, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(12.dp))
             return@Box
         }
-        SearchBar(searching, onSearch, onSettings, Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(12.dp))
-        // The buttons sit right above the card, so a tall card (big text) pushes them up
-        // instead of covering them.
+        // The search box on top and the buttons and card at the bottom share one column, so a
+        // tall card (big text, a long result list) shrinks and scrolls instead of pushing the
+        // buttons up over the search box.
         Column(
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            horizontalAlignment = Alignment.End,
-            modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(12.dp),
+            verticalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(12.dp),
         ) {
-            MapButton(Icons.Filled.Add, "Zoom in", onZoomIn)
-            MapButton(NewtIcons.ZoomOut, "Zoom out", onZoomOut)
-            MapButton(NewtIcons.MyLocation, "Where am I", onMyLocation)
-            if (preview != null) {
-                PreviewCard(preview, onStart, onToggleTolls, onClosePreview)
-            } else if (card != null) {
-                CardView(card, onCloseCard, onShare, onCopy, onOpenElsewhere, onDirections, Modifier)
+            SearchBar(searching, onSearch, onSettings, Modifier)
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.Bottom),
+                horizontalAlignment = Alignment.End,
+                modifier = Modifier.weight(1f, fill = false).padding(top = 12.dp),
+            ) {
+                MapButton(Icons.Filled.Add, "Zoom in", onZoomIn)
+                MapButton(NewtIcons.ZoomOut, "Zoom out", onZoomOut)
+                MapButton(NewtIcons.MyLocation, "Where am I", onMyLocation)
+                if (preview != null) {
+                    PreviewCard(preview, onStart, onToggleTolls, onClosePreview)
+                } else if (card != null) {
+                    CardView(card, onCloseCard, onShare, onCopy, onOpenElsewhere, onDirections, onPick, Modifier.weight(1f, fill = false))
+                }
             }
         }
     }
@@ -183,6 +200,7 @@ private fun CardView(
     onCopy: (MapCard.Place) -> Unit,
     onOpenElsewhere: (MapCard.Place) -> Unit,
     onDirections: (MapCard.Place) -> Unit,
+    onPick: (SearchHit) -> Unit,
     modifier: Modifier,
 ) {
     Surface(
@@ -202,6 +220,7 @@ private fun CardView(
                         }
                         is MapCard.Place -> {
                             Text(card.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, modifier = Modifier.semantics { heading() })
+                            if (!card.address.isNullOrEmpty()) Text(card.address, style = MaterialTheme.typography.titleMedium)
                             Text(
                                 "%.5f, %.5f".format(card.lat, card.lng),
                                 style = MaterialTheme.typography.titleMedium,
@@ -210,9 +229,20 @@ private fun CardView(
                             )
                         }
                         is MapCard.Note -> Text(card.text, style = MaterialTheme.typography.titleLarge)
+                        is MapCard.Results -> Text(resultsTitle(card), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.semantics { heading() })
                     }
                 }
                 MapButton(Icons.Filled.Close, "Close", onClose, size = 56)
+            }
+            if (card is MapCard.Results) {
+                // Scrolls when there are more rows than fit (big text), leaving the top of the map visible.
+                val maxHeight = (LocalConfiguration.current.screenHeightDp * 0.5f).dp
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.weight(1f, fill = false).heightIn(max = maxHeight).verticalScroll(rememberScrollState()),
+                ) {
+                    card.hits.forEach { hit -> ResultRow(hit, onPick) }
+                }
             }
             if (card is MapCard.Place) {
                 // Directions is the one big green button; the rest say what they do.
@@ -232,5 +262,47 @@ private fun CardView(
                 }
             }
         }
+    }
+}
+
+internal fun resultsTitle(card: MapCard.Results): String {
+    val count = if (card.hits.size == 1) "1 place" else "${card.hits.size} places"
+    return if (card.shortenedTo != null) {
+        "Nothing for \"${card.query}\". $count for \"${card.shortenedTo}\":"
+    } else {
+        "$count for \"${card.query}\""
+    }
+}
+
+/** "0.3 mi", "4.2 mi", "25 mi". */
+internal fun milesText(miles: Double): String = when {
+    miles < 0.1 -> "< 0.1 mi"
+    miles < 10 -> "%.1f mi".format(miles)
+    else -> "%.0f mi".format(miles)
+}
+
+/** One search result: a big row with the name, the street and town, and how far. */
+@Composable
+private fun ResultRow(hit: SearchHit, onPick: (SearchHit) -> Unit) {
+    val shape = RoundedCornerShape(16.dp)
+    val distance = hit.miles?.let(::milesText)
+    val spoken = listOfNotNull(hit.name, hit.address.ifEmpty { null }, distance?.replace("mi", "miles")).joinToString(", ")
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 64.dp)
+            .clip(shape)
+            .border(neonOutline(2.dp), shape)
+            .clickable(onClickLabel = "Show on the map", role = Role.Button) { onPick(hit) }
+            .clearAndSetSemantics { contentDescription = spoken; role = Role.Button }
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(hit.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            if (hit.address.isNotEmpty()) Text(hit.address, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        if (distance != null) Text(distance, style = MaterialTheme.typography.titleMedium, fontFamily = NewtFonts.Mono, color = MaterialTheme.colorScheme.primary)
     }
 }

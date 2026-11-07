@@ -31,9 +31,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
 import io.github.secnewt.maps.handoff.geoUri
-import io.github.secnewt.maps.link.GeoResult
 import io.github.secnewt.maps.link.LinkResult
-import io.github.secnewt.maps.link.NominatimGeocoder
+import io.github.secnewt.maps.search.PhotonSearch
+import io.github.secnewt.maps.search.SearchHit
+import io.github.secnewt.maps.search.SearchOutcome
 import io.github.secnewt.maps.map.MapController
 import io.github.secnewt.maps.map.NewtMap
 import io.github.secnewt.maps.nav.NavGuidance
@@ -55,7 +56,7 @@ import org.maplibre.android.geometry.LatLng
 class MainActivity : ComponentActivity() {
     private val needsTurningOn = mutableStateOf(true)
     private val controller = MapController()
-    private val geocoder by lazy { NominatimGeocoder() }
+    private val search by lazy { PhotonSearch() }
     private val navigator by lazy { Navigator(this) }
     private val navPrefs by lazy { getSharedPreferences("navigation", MODE_PRIVATE) }
     private val practice = mutableStateOf(false)
@@ -87,6 +88,26 @@ class MainActivity : ComponentActivity() {
     @androidx.compose.runtime.Composable
     private fun Map(onSettings: () -> Unit) {
         var card by remember { mutableStateOf<MapCard?>(null) }
+        // The last search's list, so closing a place picked from it goes back to the list.
+        var results by remember { mutableStateOf<MapCard.Results?>(null) }
+        val showResults = { list: MapCard.Results ->
+            card = list
+            controller.showMany(list.hits.map { it.lat to it.lng })
+        }
+        val closeCard = {
+            val list = results
+            if (card is MapCard.Place && list != null) {
+                showResults(list)
+            } else {
+                results = null
+                card = null
+                controller.clearPlace()
+            }
+        }
+        val pick = { hit: SearchHit ->
+            card = MapCard.Place(hit.name, hit.lat, hit.lng, hit.address.ifEmpty { null })
+            controller.show(hit.lat, hit.lng)
+        }
         var searching by remember { mutableStateOf(false) }
         val scope = rememberCoroutineScope()
         val dark = isSystemInDarkTheme()
@@ -157,28 +178,41 @@ class MainActivity : ComponentActivity() {
         }
         if (driving) BackHandler { stopDriving() }
         if (route != null && !driving) BackHandler { route = null; controller.clearRoute() }
-        if (card != null) BackHandler { card = null; controller.clearPlace() }
+        if (card != null) BackHandler { closeCard() }
         MapScreen(
             map = { NewtMap(controller, dark, startPosition(), onTap = { street -> card = street }, Modifier.fillMaxSize()) },
             card = card,
             searching = searching,
             onSearch = { text ->
                 searching = true
+                val near = controller.near()
                 scope.launch {
-                    val result = withContext(Dispatchers.IO) { geocoder.find(text) }
+                    val outcome = withContext(Dispatchers.IO) { search.search(text, near) }
                     searching = false
-                    card = when (result) {
-                        is GeoResult.Found -> MapCard.Place(text, result.lat, result.lng).also { controller.show(it.lat, it.lng) }
-                        GeoResult.NotFound -> MapCard.Note("Couldn't find \"$text\".")
-                        GeoResult.NoInternet -> MapCard.Note("No internet, so search can't run.")
+                    results = null
+                    when (outcome) {
+                        is SearchOutcome.Results -> {
+                            val list = MapCard.Results(text, outcome.hits, outcome.shortenedTo)
+                            // One clear answer goes straight to it; otherwise show the list.
+                            if (outcome.hits.size == 1 && outcome.shortenedTo == null) {
+                                pick(outcome.hits.single())
+                            } else {
+                                results = list
+                                showResults(list)
+                            }
+                        }
+                        SearchOutcome.NotFound -> { card = MapCard.Note("Couldn't find \"$text\"."); controller.clearPlace() }
+                        SearchOutcome.NoInternet -> card = MapCard.Note("No internet, so search can't run.")
+                        SearchOutcome.ServerProblem -> card = MapCard.Note("The search server isn't answering. Try again in a minute.")
                     }
                 }
             },
+            onPick = pick,
             onZoomIn = { controller.zoomBy(1.0) },
             onZoomOut = { controller.zoomBy(-1.0) },
             onMyLocation = { withLocation(follow) },
             onSettings = onSettings,
-            onCloseCard = { card = null; controller.clearPlace() },
+            onCloseCard = closeCard,
             onShare = { place ->
                 val text = "${place.name}\nhttps://www.openstreetmap.org/?mlat=${place.lat}&mlon=${place.lng}#map=17/${place.lat}/${place.lng}"
                 startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text), null))

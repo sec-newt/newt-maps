@@ -71,9 +71,20 @@ class Navigator(context: Context) {
             ?: withTimeoutOrNull(15_000) { location.locationUpdates(1000).first() }
             ?: throw RouteProblem("Can't tell where you are yet. Step outside or wait a moment, then try again.")
         val routes = try {
-            core(avoidTolls).getRoutes(here.toUserLocation(), listOf(Waypoint(coordinate = GeographicCoordinate(lat, lng), kind = WaypointKind.BREAK)))
-        } catch (e: Exception) {
+            // Off the main thread: Ferrostar reads the server's answer on whatever thread
+            // calls it, and Android refuses network reads on the main one.
+            val core = core(avoidTolls)
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                core.getRoutes(here.toUserLocation(), listOf(Waypoint(coordinate = GeographicCoordinate(lat, lng), kind = WaypointKind.BREAK)))
+            }
+        } catch (e: java.io.IOException) {
+            android.util.Log.w("Navigator", "route request failed", e)
             throw RouteProblem("Couldn't reach the route server on persephone. Is it on, and is Tailscale connected?")
+        } catch (e: Exception) {
+            // The server answered, but the answer couldn't be used: say so, with the reason,
+            // instead of blaming the network.
+            android.util.Log.w("Navigator", "route answer unusable", e)
+            throw RouteProblem("The route server answered, but its route couldn't be read. (${e.javaClass.simpleName}: ${e.message?.take(160)})")
         }
         return routes.firstOrNull() ?: throw RouteProblem("No route found to there.")
     }

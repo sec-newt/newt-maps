@@ -128,7 +128,8 @@ fun MapScreen(
             Column(
                 verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.Bottom),
                 horizontalAlignment = Alignment.End,
-                modifier = Modifier.weight(1f, fill = false).padding(top = 12.dp),
+                // Full width, so the buttons sit on the right even with no card open.
+                modifier = Modifier.weight(1f, fill = false).fillMaxWidth().padding(top = 12.dp),
             ) {
                 MapButton(Icons.Filled.Add, "Zoom in", onZoomIn)
                 MapButton(NewtIcons.ZoomOut, "Zoom out", onZoomOut)

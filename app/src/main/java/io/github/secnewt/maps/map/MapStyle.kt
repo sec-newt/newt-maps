@@ -22,6 +22,9 @@ object MapStyle {
     /** The place a search or link found, drawn as a big dot. */
     const val PLACE_SOURCE = "place"
 
+    /** Home and my saved places: gold dots with their names, always on the map. */
+    const val SAVED_SOURCE = "saved"
+
     /** The route being previewed or driven, drawn as a thick green line. */
     const val ROUTE_SOURCE = "route"
 
@@ -29,21 +32,21 @@ object MapStyle {
         val background: String, val water: String, val park: String, val building: String,
         val highway: String, val main: String, val street: String, val small: String,
         val label: String, val halo: String, val placeLabel: String, val place: String, val placeRing: String,
-        val route: String,
+        val route: String, val saved: String,
     )
 
     private val Dark = Colors(
         background = "#050608", water = "#16304F", park = "#0F2216", building = "#1C1F2B",
         highway = "#FF9E64", main = "#E0AF68", street = "#C0CAF5", small = "#6B7299",
         label = "#FFFFFF", halo = "#000000", placeLabel = "#7DCFFF", place = "#FF7A93", placeRing = "#FFFFFF",
-        route = "#9ECE6A",
+        route = "#9ECE6A", saved = "#FFC777",
     )
 
     private val Light = Colors(
         background = "#F2F3F7", water = "#9CC3EE", park = "#CFE6C4", building = "#DADCE5",
         highway = "#B15C00", main = "#8C6C3E", street = "#343B58", small = "#8990B3",
         label = "#0B0C10", halo = "#FFFFFF", placeLabel = "#0F4B6E", place = "#D20F39", placeRing = "#FFFFFF",
-        route = "#1E7A34",
+        route = "#1E7A34", saved = "#8A4B00",
     )
 
     /**
@@ -121,6 +124,25 @@ object MapStyle {
             )
             .put(
                 layer(
+                    "saved-dot", "circle", source = SAVED_SOURCE,
+                    paint = obj("circle-radius" to 9, "circle-color" to c.saved, "circle-stroke-color" to c.halo, "circle-stroke-width" to 3),
+                ),
+            )
+            .put(
+                layer(
+                    "saved-names", "symbol", source = SAVED_SOURCE, minZoom = 11.0,
+                    layout = obj(
+                        "text-field" to arr("get", "name"),
+                        "text-font" to arr("Noto Sans Bold"),
+                        "text-size" to 18 * s,
+                        "text-anchor" to "top",
+                        "text-offset" to arr(0, 0.9),
+                    ),
+                    paint = obj("text-color" to c.saved, "text-halo-color" to c.halo, "text-halo-width" to 3),
+                ),
+            )
+            .put(
+                layer(
                     "place-dot", "circle", source = PLACE_SOURCE,
                     paint = obj("circle-radius" to 12, "circle-color" to c.place, "circle-stroke-color" to c.placeRing, "circle-stroke-width" to 4),
                 ),
@@ -132,6 +154,7 @@ object MapStyle {
             "sources" to obj(
                 "openmaptiles" to obj("type" to "vector", "url" to TILES),
                 PLACE_SOURCE to obj("type" to "geojson", "data" to obj("type" to "FeatureCollection", "features" to JSONArray())),
+                SAVED_SOURCE to obj("type" to "geojson", "data" to obj("type" to "FeatureCollection", "features" to JSONArray())),
                 ROUTE_SOURCE to obj("type" to "geojson", "data" to obj("type" to "FeatureCollection", "features" to JSONArray())),
             ),
             "layers" to layers,

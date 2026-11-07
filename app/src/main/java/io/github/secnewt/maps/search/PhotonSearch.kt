@@ -13,8 +13,11 @@ import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.math.sqrt
 
-/** One place a search found. [miles] is how far it is from where I am (or the map), when known. */
-data class SearchHit(val name: String, val address: String, val lat: Double, val lng: Double, val miles: Double?)
+/**
+ * One place a search found. [miles] is how far it is from where I am (or the map), when
+ * known. [saved] marks one of my own saved places (or home).
+ */
+data class SearchHit(val name: String, val address: String, val lat: Double, val lng: Double, val miles: Double?, val saved: Boolean = false)
 
 sealed interface SearchOutcome {
     /** [shortenedTo] is set when nothing matched the whole search and these are for fewer words. */

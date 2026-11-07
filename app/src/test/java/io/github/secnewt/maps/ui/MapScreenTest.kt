@@ -1,5 +1,11 @@
 package io.github.secnewt.maps.ui
 
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.onLast
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -48,10 +54,17 @@ class MapScreenTest {
         onStart: () -> Unit = {},
         onDirections: (MapCard.Place) -> Unit = {},
         onPick: (SearchHit) -> Unit = {},
+        placeSaved: Boolean = false,
+        placeIsHome: Boolean = false,
+        onSave: (MapCard.Place, String) -> Unit = { _, _ -> },
+        onRemove: (MapCard.Place) -> Unit = {},
+        onSetHome: (MapCard.Place) -> Unit = {},
+        onHome: () -> Unit = {},
     ) = MapScreen(
         map = { Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) },
         card = card, searching = false, onSearch = {}, onZoomIn = onZoomIn, onZoomOut = {}, onMyLocation = {},
         onSettings = {}, onCloseCard = onClose, preview = preview, guidance = guidance, onStart = onStart, onDirections = onDirections, onPick = onPick,
+        placeSaved = placeSaved, placeIsHome = placeIsHome, onSave = onSave, onRemove = onRemove, onSetHome = onSetHome, onHome = onHome,
     )
 
     private val preview = RoutePreview("The Catch, 5949 Broadway Blvd", "12 min", "4.3 mi", "3:45 PM", avoidTolls = true, practice = false)
@@ -88,6 +101,88 @@ class MapScreenTest {
     fun resultsSayWhenTheSearchWasShortened() {
         composeRule.setContent { NewtTheme(darkTheme = true) { Screen(results.copy(query = "Alamo Drafthouse Lake Highlands", shortenedTo = "Alamo Drafthouse")) } }
         composeRule.onNodeWithText("Nothing for \"Alamo Drafthouse Lake Highlands\". 4 places for \"Alamo Drafthouse\":").assertIsDisplayed()
+    }
+
+    @Test fun savedPlaceDark() = composeRule.newtScreenshot("map-place-saved-dark", dark = true) { Screen(place.copy(name = "Fish place", address = "The Catch"), placeSaved = true) }
+    @Test fun homeLight() = composeRule.newtScreenshot("map-place-home-light", dark = false) { Screen(place.copy(name = "Home", address = "1234 Main St"), placeIsHome = true) }
+    @Test fun savedPlaceLargeText() = composeRule.newtScreenshot("map-place-saved-200pct", dark = true, fontScale = 2f) { Screen(place, placeSaved = true) }
+    @Test fun savedInResultsDark() = composeRule.newtScreenshot("search-results-saved-dark", dark = true) {
+        Screen(MapCard.Results("", listOf(SearchHit("Home", "1234 Main St", 32.91, -96.64, 0.0, saved = true), SearchHit("Mom's", "", 32.8, -96.7, 9.1, saved = true)), title = "Saved places"))
+    }
+
+    /** Moves time on and lets the dialog window attach, without waiting for the cursor to stop blinking. */
+    private fun settle() {
+        repeat(5) {
+            composeRule.mainClock.advanceTimeBy(100)
+            org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+        }
+    }
+
+    @Test
+    fun saveAsksForANameFilledIn() {
+        var savedAs: String? = null
+        composeRule.setContent { NewtTheme(darkTheme = true) { Screen(place, onSave = { _, name -> savedAs = name }) } }
+        // The dialog's blinking cursor never stops animating, so step the clock by hand.
+        composeRule.mainClock.autoAdvance = false
+        composeRule.onNodeWithContentDescription("Save this place").performClick()
+        settle()
+        composeRule.onNodeWithText("Save as").assertExists()
+        composeRule.onNode(hasSetTextAction() and hasText(place.name)).assertExists() // filled in with the place's name
+        composeRule.onAllNodesWithText("Save").onLast().performClick()
+        settle()
+        // Typing can't be tested here (it waits for the cursor to stop blinking); keeping the name is one tap.
+        assertEquals(place.name, savedAs)
+    }
+
+    @Test
+    fun removeAsksFirst() {
+        var removed = false
+        composeRule.setContent { NewtTheme(darkTheme = true) { Screen(place, placeSaved = true, onRemove = { removed = true }) } }
+        composeRule.onNodeWithContentDescription("Remove from saved places").performClick()
+        assertEquals(false, removed)
+        composeRule.onAllNodesWithText("Remove").onLast().performClick()
+        assertEquals(true, removed)
+    }
+
+    @Test
+    fun aSavedPlaceHasNoSaveButton() {
+        composeRule.setContent { NewtTheme(darkTheme = true) { Screen(place, placeSaved = true) } }
+        composeRule.onAllNodesWithContentDescription("Save this place").assertCountEquals(0)
+        composeRule.onNodeWithText("Saved").assertIsDisplayed()
+    }
+
+    @Test
+    fun setAsHome() {
+        var set = false
+        composeRule.setContent { NewtTheme(darkTheme = true) { Screen(place, onSetHome = { set = true }) } }
+        composeRule.onNodeWithText("Set as home").performClick()
+        assertEquals(true, set)
+    }
+
+    @Test
+    fun homeHasNoSetAsHomeButton() {
+        composeRule.setContent { NewtTheme(darkTheme = true) { Screen(place, placeIsHome = true) } }
+        composeRule.onAllNodesWithText("Set as home").assertCountEquals(0)
+    }
+
+    @Test
+    fun aTallPlaceCardScrollsToItsLastButton() {
+        var opened = false
+        composeRule.setContent {
+            androidx.compose.runtime.CompositionLocalProvider(
+                androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(androidx.compose.ui.platform.LocalDensity.current.density, fontScale = 2f),
+            ) { NewtTheme(darkTheme = true) { MapScreen(map = {}, card = place, searching = false, onSearch = {}, onZoomIn = {}, onZoomOut = {}, onMyLocation = {}, onSettings = {}, onCloseCard = {}, placeSaved = true, onOpenElsewhere = { opened = true }) } }
+        }
+        composeRule.onNodeWithContentDescription("Open in another map app").performScrollTo().assertIsDisplayed().performClick()
+        assertEquals(true, opened)
+    }
+
+    @Test
+    fun goHomeButton() {
+        var home = false
+        composeRule.setContent { NewtTheme(darkTheme = true) { Screen(null, onHome = { home = true }) } }
+        composeRule.onNodeWithContentDescription("Go home").performClick()
+        assertEquals(true, home)
     }
 
     @Test fun distances() {

@@ -43,6 +43,17 @@ class MapController {
         map?.animateCamera(CameraUpdateFactory.newLatLngZoom(LatLng(lat, lng), 16.0), 600)
     }
 
+    /** Draw home and my saved places (name, lat, lng). Kept so they come back if the style reloads. */
+    fun showSaved(places: List<Triple<String, Double, Double>>) {
+        saved = places
+        val features = places.map { (name, lat, lng) ->
+            org.maplibre.geojson.Feature.fromGeometry(Point.fromLngLat(lng, lat)).apply { addStringProperty("name", name) }
+        }
+        style?.getSourceAs<GeoJsonSource>(MapStyle.SAVED_SOURCE)?.setGeoJson(org.maplibre.geojson.FeatureCollection.fromFeatures(features))
+    }
+
+    internal var saved: List<Triple<String, Double, Double>> = emptyList()
+
     /** Mark several places (search results) and fit them all on screen above the results card. */
     fun showMany(points: List<Pair<Double, Double>>) {
         if (points.isEmpty()) return
@@ -166,7 +177,7 @@ fun NewtMap(
     controller: MapController,
     dark: Boolean,
     start: CameraPosition,
-    onTap: (MapCard.Street?) -> Unit,
+    onTap: (MapCard?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -213,6 +224,18 @@ fun NewtMap(
             map.addOnMapClickListener { point ->
                 val screen = map.projection.toScreenLocation(point)
                 val reach = 24 * context.resources.displayMetrics.density
+                // A saved place wins over the street under it.
+                val mine = map.queryRenderedFeatures(
+                    RectF(screen.x - reach, screen.y - reach, screen.x + reach, screen.y + reach),
+                    "saved-dot", "saved-names",
+                ).firstNotNullOfOrNull { feature ->
+                    val at = feature.geometry() as? Point ?: return@firstNotNullOfOrNull null
+                    feature.getStringProperty("name")?.let { MapCard.Place(it, at.latitude(), at.longitude()) }
+                }
+                if (mine != null) {
+                    onTap(mine)
+                    return@addOnMapClickListener true
+                }
                 val hits = map.queryRenderedFeatures(
                     RectF(screen.x - reach, screen.y - reach, screen.x + reach, screen.y + reach),
                     MapStyle.STREET_HIT_LAYER,
@@ -232,7 +255,7 @@ fun NewtMap(
     LaunchedEffect(dark, textScale) {
         mapView.getMapAsync { map ->
             android.util.Log.i("NewtMap", "setting style dark=$dark scale=$textScale")
-            map.setStyle(Style.Builder().fromJson(MapStyle.json(dark, textScale))) { style -> controller.style = style }
+            map.setStyle(Style.Builder().fromJson(MapStyle.json(dark, textScale))) { style -> controller.style = style; controller.showSaved(controller.saved) }
         }
     }
     AndroidView(factory = { mapView }, modifier = modifier)

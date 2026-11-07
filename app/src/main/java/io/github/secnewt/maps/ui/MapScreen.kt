@@ -31,6 +31,13 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.AlertDialog
+import androidx.compose.runtime.remember
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
@@ -71,7 +78,7 @@ sealed interface MapCard {
     data class Place(val name: String, val lat: Double, val lng: Double, val address: String? = null) : MapCard
 
     /** Everything a search found, nearest first-ish; tap one to see it. */
-    data class Results(val query: String, val hits: List<SearchHit>, val shortenedTo: String? = null) : MapCard
+    data class Results(val query: String, val hits: List<SearchHit>, val shortenedTo: String? = null, val title: String? = null) : MapCard
 
     /** Something went wrong or needs saying ("Couldn't find that"). */
     data class Note(val text: String) : MapCard
@@ -100,6 +107,16 @@ fun MapScreen(
     onOpenElsewhere: (MapCard.Place) -> Unit = {},
     onDirections: (MapCard.Place) -> Unit = {},
     onPick: (SearchHit) -> Unit = {},
+    /** Whether the place on the card is saved, or is home. */
+    placeSaved: Boolean = false,
+    placeIsHome: Boolean = false,
+    onSave: (MapCard.Place, String) -> Unit = { _, _ -> },
+    onRename: (MapCard.Place, String) -> Unit = { _, _ -> },
+    onRemove: (MapCard.Place) -> Unit = {},
+    onSetHome: (MapCard.Place) -> Unit = {},
+    onHome: () -> Unit = {},
+    /** The empty search box was tapped: a chance to show saved places. */
+    onBrowseSaved: () -> Unit = {},
     /** A found route waiting for Start; replaces the card. */
     preview: RoutePreview? = null,
     onStart: () -> Unit = {},
@@ -124,7 +141,7 @@ fun MapScreen(
             verticalArrangement = Arrangement.SpaceBetween,
             modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(12.dp),
         ) {
-            SearchBar(searching, onSearch, onSettings, Modifier)
+            SearchBar(searching, onSearch, onSettings, onBrowseSaved, Modifier)
             Column(
                 verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.Bottom),
                 horizontalAlignment = Alignment.End,
@@ -133,10 +150,15 @@ fun MapScreen(
                 MapButton(Icons.Filled.Add, "Zoom in", onZoomIn)
                 MapButton(NewtIcons.ZoomOut, "Zoom out", onZoomOut)
                 MapButton(NewtIcons.MyLocation, "Where am I", onMyLocation)
+                MapButton(Icons.Filled.Home, "Go home", onHome)
                 if (preview != null) {
                     PreviewCard(preview, onStart, onToggleTolls, onClosePreview)
                 } else if (card != null) {
-                    CardView(card, onCloseCard, onShare, onCopy, onOpenElsewhere, onDirections, onPick, Modifier.weight(1f, fill = false))
+                    CardView(
+                        card, onCloseCard, onShare, onCopy, onOpenElsewhere, onDirections, onPick,
+                        SavedActions(placeSaved, placeIsHome, onSave, onRename, onRemove, onSetHome),
+                        Modifier.weight(1f, fill = false),
+                    )
                 }
             }
         }
@@ -144,7 +166,7 @@ fun MapScreen(
 }
 
 @Composable
-private fun SearchBar(searching: Boolean, onSearch: (String) -> Unit, onSettings: () -> Unit, modifier: Modifier) {
+private fun SearchBar(searching: Boolean, onSearch: (String) -> Unit, onSettings: () -> Unit, onBrowseSaved: () -> Unit, modifier: Modifier) {
     var text by rememberSaveable { mutableStateOf("") }
     val focus = LocalFocusManager.current
     val go = { if (text.isNotBlank()) { focus.clearFocus(); onSearch(text.trim()) } }
@@ -168,7 +190,8 @@ private fun SearchBar(searching: Boolean, onSearch: (String) -> Unit, onSettings
             shape = RoundedCornerShape(16.dp),
             modifier = Modifier
                 .weight(1f)
-                .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(16.dp)),
+                .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(16.dp))
+                .onFocusChanged { if (it.isFocused && text.isBlank()) onBrowseSaved() },
         )
         MapButton(Icons.Filled.Settings, "Settings", onSettings)
     }
@@ -201,15 +224,21 @@ private fun CardView(
     onOpenElsewhere: (MapCard.Place) -> Unit,
     onDirections: (MapCard.Place) -> Unit,
     onPick: (SearchHit) -> Unit,
+    saved: SavedActions,
     modifier: Modifier,
 ) {
+    // Which question is open: a name to save under, a new name, or "remove this?".
+    var asking by remember(card) { mutableStateOf<Ask?>(null) }
     Surface(
         shape = RoundedCornerShape(20.dp),
         color = MaterialTheme.colorScheme.surface,
         border = neonOutline(2.dp),
         modifier = modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite },
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        // A place card with big text can be taller than the room left; it scrolls. (The results
+        // list scrolls on its own, so it keeps the title in view.)
+        val scroll = if (card is MapCard.Results) Modifier else Modifier.verticalScroll(rememberScrollState())
+        Column(Modifier.then(scroll).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.Top) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     when (card) {
@@ -221,6 +250,17 @@ private fun CardView(
                         is MapCard.Place -> {
                             Text(card.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, modifier = Modifier.semantics { heading() })
                             if (!card.address.isNullOrEmpty()) Text(card.address, style = MaterialTheme.typography.titleMedium)
+                            if (saved.isHome || saved.saved) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Icon(if (saved.isHome) Icons.Filled.Home else Icons.Filled.Star, contentDescription = null, tint = MaterialTheme.colorScheme.tertiary)
+                                    Text(
+                                        if (saved.isHome) "Home" else "Saved",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.tertiary,
+                                    )
+                                }
+                            }
                             Text(
                                 "%.5f, %.5f".format(card.lat, card.lng),
                                 style = MaterialTheme.typography.titleMedium,
@@ -229,7 +269,7 @@ private fun CardView(
                             )
                         }
                         is MapCard.Note -> Text(card.text, style = MaterialTheme.typography.titleLarge)
-                        is MapCard.Results -> Text(resultsTitle(card), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.semantics { heading() })
+                        is MapCard.Results -> Text(card.title ?: resultsTitle(card), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.semantics { heading() })
                     }
                 }
                 MapButton(Icons.Filled.Close, "Close", onClose, size = 56)
@@ -256,11 +296,32 @@ private fun CardView(
                 )
                 @OptIn(ExperimentalLayoutApi::class)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (saved.saved) {
+                        NewtButton("Rename", onClick = { asking = Ask.Rename }, icon = Icons.Filled.Edit)
+                        NewtButton("Remove", onClick = { asking = Ask.Remove }, icon = Icons.Filled.Delete, modifier = Modifier.semantics { contentDescription = "Remove from saved places" })
+                    } else {
+                        NewtButton("Save", onClick = { asking = Ask.Save }, icon = Icons.Filled.Star, modifier = Modifier.semantics { contentDescription = "Save this place" })
+                    }
+                    if (!saved.isHome) NewtButton("Set as home", onClick = { saved.onSetHome(card) }, icon = Icons.Filled.Home)
                     NewtButton("Share", onClick = { onShare(card) }, icon = Icons.Filled.Share)
                     NewtButton("Copy", onClick = { onCopy(card) }, icon = NewtIcons.Copy, modifier = Modifier.semantics { contentDescription = "Copy coordinates" })
                     NewtButton("Open in", onClick = { onOpenElsewhere(card) }, icon = NewtIcons.OpenElsewhere, modifier = Modifier.semantics { contentDescription = "Open in another map app" })
                 }
             }
+        }
+    }
+    if (card is MapCard.Place) {
+        when (asking) {
+            Ask.Save -> NameDialog("Save as", card.name, "Save", onDone = { saved.onSave(card, it); asking = null }, onCancel = { asking = null })
+            Ask.Rename -> NameDialog("Rename", card.name, "Rename", onDone = { saved.onRename(card, it); asking = null }, onCancel = { asking = null })
+            Ask.Remove -> AlertDialog(
+                onDismissRequest = { asking = null },
+                title = { Text("Remove ${card.name}?", style = MaterialTheme.typography.headlineSmall) },
+                text = { Text("It comes off your saved places. You can save it again any time.", style = MaterialTheme.typography.titleMedium) },
+                confirmButton = { NewtPrimaryButton("Remove", onClick = { saved.onRemove(card); asking = null }, tone = NewtTone.Danger) },
+                dismissButton = { NewtButton("Keep", onClick = { asking = null }) },
+            )
+            null -> {}
         }
     }
 }
@@ -286,7 +347,7 @@ internal fun milesText(miles: Double): String = when {
 private fun ResultRow(hit: SearchHit, onPick: (SearchHit) -> Unit) {
     val shape = RoundedCornerShape(16.dp)
     val distance = hit.miles?.let(::milesText)
-    val spoken = listOfNotNull(hit.name, hit.address.ifEmpty { null }, distance?.replace("mi", "miles")).joinToString(", ")
+    val spoken = listOfNotNull(hit.name, if (hit.saved && hit.name != "Home") "saved" else null, hit.address.ifEmpty { null }, distance?.replace("mi", "miles")).joinToString(", ")
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -299,10 +360,49 @@ private fun ResultRow(hit: SearchHit, onPick: (SearchHit) -> Unit) {
             .clearAndSetSemantics { contentDescription = spoken; role = Role.Button }
             .padding(horizontal = 16.dp, vertical = 12.dp),
     ) {
+        if (hit.saved) Icon(if (hit.name == "Home") Icons.Filled.Home else Icons.Filled.Star, contentDescription = null, tint = MaterialTheme.colorScheme.tertiary)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(hit.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             if (hit.address.isNotEmpty()) Text(hit.address, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if (distance != null) Text(distance, style = MaterialTheme.typography.titleMedium, fontFamily = NewtFonts.Mono, color = MaterialTheme.colorScheme.primary)
     }
+}
+
+/** The saved-place state and buttons for the place card. */
+private class SavedActions(
+    val saved: Boolean,
+    val isHome: Boolean,
+    val onSave: (MapCard.Place, String) -> Unit,
+    val onRename: (MapCard.Place, String) -> Unit,
+    val onRemove: (MapCard.Place) -> Unit,
+    val onSetHome: (MapCard.Place) -> Unit,
+)
+
+private enum class Ask { Save, Rename, Remove }
+
+/** Asks for a name, filled in with [initial] so keeping it is one tap. */
+@Composable
+private fun NameDialog(title: String, initial: String, action: String, onDone: (String) -> Unit, onCancel: () -> Unit) {
+    var name by remember { mutableStateOf(initial) }
+    val done = { if (name.isNotBlank()) onDone(name.trim()) }
+    AlertDialog(
+        onDismissRequest = onCancel,
+        title = { Text(title, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.semantics { heading() }) },
+        text = {
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text("Name") },
+                singleLine = true,
+                textStyle = MaterialTheme.typography.titleLarge,
+                colors = neonFieldColors(),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { done() }),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        },
+        confirmButton = { NewtPrimaryButton(action, onClick = done) },
+        dismissButton = { NewtButton("Cancel", onClick = onCancel) },
+    )
 }

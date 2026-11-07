@@ -14,6 +14,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.takahirom.roborazzi.RobolectricDeviceQualifiers
+import io.github.secnewt.maps.search.SearchHit
 import io.github.secnewt.test.newtScreenshot
 import io.github.secnewt.ui.NewtTheme
 import org.junit.Assert.assertEquals
@@ -46,10 +47,11 @@ class MapScreenTest {
         guidance: Guidance? = null,
         onStart: () -> Unit = {},
         onDirections: (MapCard.Place) -> Unit = {},
+        onPick: (SearchHit) -> Unit = {},
     ) = MapScreen(
         map = { Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) },
         card = card, searching = false, onSearch = {}, onZoomIn = onZoomIn, onZoomOut = {}, onMyLocation = {},
-        onSettings = {}, onCloseCard = onClose, preview = preview, guidance = guidance, onStart = onStart, onDirections = onDirections,
+        onSettings = {}, onCloseCard = onClose, preview = preview, guidance = guidance, onStart = onStart, onDirections = onDirections, onPick = onPick,
     )
 
     private val preview = RoutePreview("The Catch, 5949 Broadway Blvd", "12 min", "4.3 mi", "3:45 PM", avoidTolls = true, practice = false)
@@ -58,6 +60,41 @@ class MapScreenTest {
         spoken = "Turn right onto Broadway Boulevard.", then = "Then Main Street", timeLeft = "9 min", distanceLeft = "3.8 mi",
         arrival = "3:45 PM", muted = false, rerouting = false, practice = false,
     )
+
+    private val results = MapCard.Results(
+        "El Fenix",
+        listOf(
+            SearchHit("El Fenix", "255 Casa Linda Plaza, Dallas", 32.833, -96.7007, 6.38),
+            SearchHit("El Fenix Mexican Restaurant", "3904 Towne Crossing Boulevard, Mesquite", 32.81, -96.62, 7.1),
+            SearchHit("El Fenix", "Central Expressway, Plano", 33.0198, -96.70, 8.2),
+            SearchHit("El Fenix", "West Northwest Highway, Dallas", 32.86, -96.77, 12.0),
+        ),
+    )
+
+    @Test fun resultsDark() = composeRule.newtScreenshot("search-results-dark", dark = true) { Screen(results) }
+    @Test fun resultsLight() = composeRule.newtScreenshot("search-results-light", dark = false) { Screen(results.copy(query = "Alamo Drafthouse Lake Highlands", shortenedTo = "Alamo Drafthouse")) }
+    @Test fun resultsLargeText() = composeRule.newtScreenshot("search-results-200pct", dark = true, fontScale = 2f) { Screen(results) }
+    @Test fun pickedPlaceWithAddress() = composeRule.newtScreenshot("map-place-address-dark", dark = true) { Screen(place.copy(name = "El Fenix", address = "255 Casa Linda Plaza, Dallas")) }
+
+    @Test
+    fun tappingAResultPicksIt() {
+        var picked: SearchHit? = null
+        composeRule.setContent { NewtTheme(darkTheme = true) { Screen(results, onPick = { picked = it }) } }
+        composeRule.onNodeWithContentDescription("El Fenix Mexican Restaurant, 3904 Towne Crossing Boulevard, Mesquite, 7.1 miles").performClick()
+        assertEquals(results.hits[1], picked)
+    }
+
+    @Test
+    fun resultsSayWhenTheSearchWasShortened() {
+        composeRule.setContent { NewtTheme(darkTheme = true) { Screen(results.copy(query = "Alamo Drafthouse Lake Highlands", shortenedTo = "Alamo Drafthouse")) } }
+        composeRule.onNodeWithText("Nothing for \"Alamo Drafthouse Lake Highlands\". 4 places for \"Alamo Drafthouse\":").assertIsDisplayed()
+    }
+
+    @Test fun distances() {
+        assertEquals("< 0.1 mi", milesText(0.04))
+        assertEquals("4.2 mi", milesText(4.24))
+        assertEquals("25 mi", milesText(25.3))
+    }
 
     @Test fun previewDark() = composeRule.newtScreenshot("route-preview-dark", dark = true) { Screen(null, preview = preview) }
     @Test fun previewLargeText() = composeRule.newtScreenshot("route-preview-200pct", dark = false, fontScale = 2f) { Screen(null, preview = preview.copy(practice = true)) }

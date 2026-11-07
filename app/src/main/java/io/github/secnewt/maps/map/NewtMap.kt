@@ -43,6 +43,31 @@ class MapController {
         map?.animateCamera(CameraUpdateFactory.newLatLngZoom(LatLng(lat, lng), 16.0), 600)
     }
 
+    /** Mark several places (search results) and fit them all on screen above the results card. */
+    fun showMany(points: List<Pair<Double, Double>>) {
+        if (points.isEmpty()) return
+        if (points.size == 1) return show(points[0].first, points[0].second)
+        val dots = org.maplibre.geojson.FeatureCollection.fromFeatures(points.map { (lat, lng) -> org.maplibre.geojson.Feature.fromGeometry(Point.fromLngLat(lng, lat)) })
+        style?.getSourceAs<GeoJsonSource>(MapStyle.PLACE_SOURCE)?.setGeoJson(dots)
+        val bounds = org.maplibre.android.geometry.LatLngBounds.Builder().includes(points.map { (lat, lng) -> LatLng(lat, lng) }).build()
+        val height = map?.height?.toInt() ?: 0
+        // The results card covers about the bottom half; keep the dots in the top part.
+        map?.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds, 100, 300, 100, maxOf(300, height / 2 + 100)), 600)
+    }
+
+    /**
+     * Where search should look near: my last known location when the blue dot is on,
+     * otherwise the middle of the map. Null before the map is ready.
+     */
+    @SuppressLint("MissingPermission")
+    fun near(): Pair<Double, Double>? {
+        val map = map ?: return null
+        val location = map.locationComponent.takeIf { it.isLocationComponentActivated && it.isLocationComponentEnabled }?.lastKnownLocation
+        if (location != null) return location.latitude to location.longitude
+        val target = map.cameraPosition.target ?: return null
+        return target.latitude to target.longitude
+    }
+
     /** Draw a route ([points] as lat, lng) and fit it on screen. */
     fun showRoute(points: List<Pair<Double, Double>>) {
         if (points.size < 2) return

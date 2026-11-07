@@ -10,8 +10,8 @@ import java.net.URLEncoder
 /** One GET returning the body. Throws HttpStatusException on a non-2xx answer, or IOException when offline. */
 fun interface Transport { fun get(url: String): String }
 
-/** A non-2xx answer from Nominatim (429 rate-limited, 5xx, 4xx) — not the same as being offline. */
-class HttpStatusException(val status: Int) : IOException("Nominatim answered $status")
+/** A non-2xx answer from a server (429 rate-limited, 5xx, 4xx) — not the same as being offline. */
+class HttpStatusException(val status: Int) : IOException("Server answered $status")
 
 /**
  * OpenStreetMap's search server. Only the search text is sent, at most once a second

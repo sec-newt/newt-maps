@@ -32,7 +32,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
 import io.github.secnewt.maps.handoff.geoUri
 import io.github.secnewt.maps.link.LinkResult
+import io.github.secnewt.maps.saved.SavedPlace
+import io.github.secnewt.maps.saved.SavedPlaces
 import io.github.secnewt.maps.search.PhotonSearch
+import java.io.File
 import io.github.secnewt.maps.search.SearchHit
 import io.github.secnewt.maps.search.SearchOutcome
 import io.github.secnewt.maps.map.MapController
@@ -57,6 +60,9 @@ class MainActivity : ComponentActivity() {
     private val needsTurningOn = mutableStateOf(true)
     private val controller = MapController()
     private val search by lazy { PhotonSearch() }
+    private val saved by lazy { SavedPlaces(File(filesDir, "saved.json")) }
+    // Bumped on every change to saved places, so the screen redraws.
+    private val savedVersion = mutableStateOf(0)
     private val navigator by lazy { Navigator(this) }
     private val navPrefs by lazy { getSharedPreferences("navigation", MODE_PRIVATE) }
     private val practice = mutableStateOf(false)
@@ -77,6 +83,8 @@ class MainActivity : ComponentActivity() {
                         practice = practice.value,
                         onPractice = { on -> practice.value = on; navPrefs.edit().putBoolean("practice", on).apply() },
                         mapApp = remember { MapApps(this@MainActivity).installed().firstOrNull()?.label },
+                        home = savedVersion.value.let { saved.home?.let { listOfNotNull(it.name, it.address).joinToString(", ") } },
+                        onClearHome = { saved.clearHome(); savedChanged() },
                     )
                 } else {
                     Map(onSettings = { showSettings = true })
@@ -103,6 +111,13 @@ class MainActivity : ComponentActivity() {
                 card = null
                 controller.clearPlace()
             }
+        }
+        val version = savedVersion.value
+        LaunchedEffect(version) { controller.showSaved(saved.all().map { Triple(it.name, it.lat, it.lng) }) }
+        val placeSaved = (card as? MapCard.Place)?.let { saved.at(it.lat, it.lng) != null } ?: false
+        val placeIsHome = (card as? MapCard.Place)?.let { saved.isHome(it.lat, it.lng) } ?: false
+        val savedHits = { places: List<SavedPlace>, near: Pair<Double, Double>? ->
+            places.map { SearchHit(it.name, it.address.orEmpty(), it.lat, it.lng, near?.let { n -> PhotonSearch.miles(n.first, n.second, it.lat, it.lng) }, saved = true) }
         }
         val pick = { hit: SearchHit ->
             card = MapCard.Place(hit.name, hit.lat, hit.lng, hit.address.ifEmpty { null })
@@ -180,7 +195,15 @@ class MainActivity : ComponentActivity() {
         if (route != null && !driving) BackHandler { route = null; controller.clearRoute() }
         if (card != null) BackHandler { closeCard() }
         MapScreen(
-            map = { NewtMap(controller, dark, startPosition(), onTap = { street -> card = street }, Modifier.fillMaxSize()) },
+            map = { NewtMap(controller, dark, startPosition(), onTap = { tapped ->
+                    card = if (tapped is MapCard.Place) {
+                        // A gold dot: fill in the address I saved with it.
+                        val mine = if (saved.isHome(tapped.lat, tapped.lng) && tapped.name == "Home") saved.home else saved.at(tapped.lat, tapped.lng)
+                        tapped.copy(address = mine?.address)
+                    } else {
+                        tapped
+                    }
+                }, Modifier.fillMaxSize()) },
             card = card,
             searching = searching,
             onSearch = { text ->
@@ -190,24 +213,60 @@ class MainActivity : ComponentActivity() {
                     val outcome = withContext(Dispatchers.IO) { search.search(text, near) }
                     searching = false
                     results = null
-                    when (outcome) {
-                        is SearchOutcome.Results -> {
-                            val list = MapCard.Results(text, outcome.hits, outcome.shortenedTo)
-                            // One clear answer goes straight to it; otherwise show the list.
-                            if (outcome.hits.size == 1 && outcome.shortenedTo == null) {
-                                pick(outcome.hits.single())
-                            } else {
-                                results = list
-                                showResults(list)
-                            }
-                        }
-                        SearchOutcome.NotFound -> { card = MapCard.Note("Couldn't find \"$text\"."); controller.clearPlace() }
-                        SearchOutcome.NoInternet -> card = MapCard.Note("No internet, so search can't run.")
-                        SearchOutcome.ServerProblem -> card = MapCard.Note("The search server isn't answering. Try again in a minute.")
+                    // My saved places that match come first, then the search's, minus repeats.
+                    val mine = savedHits(saved.matching(text), near)
+                    val theirs = (outcome as? SearchOutcome.Results)?.hits.orEmpty()
+                        .filterNot { hit -> mine.any { PhotonSearch.miles(it.lat, it.lng, hit.lat, hit.lng) < 0.05 } }
+                    val shortened = (outcome as? SearchOutcome.Results)?.shortenedTo?.takeIf { mine.isEmpty() }
+                    val hits = mine + theirs
+                    when {
+                        hits.size == 1 && shortened == null -> pick(hits.single())
+                        hits.isNotEmpty() -> MapCard.Results(text, hits, shortened).let { results = it; showResults(it) }
+                        outcome == SearchOutcome.NoInternet -> card = MapCard.Note("No internet, so search can't run.")
+                        outcome == SearchOutcome.ServerProblem -> card = MapCard.Note("The search server isn't answering. Try again in a minute.")
+                        else -> { card = MapCard.Note("Couldn't find \"$text\"."); controller.clearPlace() }
                     }
                 }
             },
             onPick = pick,
+            placeSaved = placeSaved,
+            placeIsHome = placeIsHome,
+            onSave = { place, name ->
+                saved.save(SavedPlace(name, place.lat, place.lng, place.address ?: place.name.takeIf { it != name }))
+                savedChanged()
+                card = place.copy(name = name)
+            },
+            onRename = { place, name ->
+                saved.at(place.lat, place.lng)?.let { saved.rename(it, name) }
+                savedChanged()
+                card = place.copy(name = name)
+            },
+            onRemove = { place ->
+                saved.at(place.lat, place.lng)?.let(saved::remove)
+                savedChanged()
+            },
+            onSetHome = { place ->
+                saved.setHome(SavedPlace(place.name, place.lat, place.lng, place.address))
+                savedChanged()
+            },
+            onHome = {
+                val home = saved.home
+                if (home == null) {
+                    card = MapCard.Note("No home set yet. Search for your address, then tap Set as home on its card.")
+                } else {
+                    val place = MapCard.Place("Home", home.lat, home.lng, listOfNotNull(home.name.takeIf { it != "Home" }, home.address).joinToString(", ").ifEmpty { null })
+                    card = place
+                    findRoute(place)
+                }
+            },
+            onBrowseSaved = {
+                val all = saved.all()
+                if (all.isNotEmpty() && card !is MapCard.Results) {
+                    val list = MapCard.Results("", savedHits(all, controller.near()), title = "Saved places")
+                    results = list
+                    showResults(list)
+                }
+            },
             onZoomIn = { controller.zoomBy(1.0) },
             onZoomOut = { controller.zoomBy(-1.0) },
             onMyLocation = { withLocation(follow) },
@@ -265,6 +324,8 @@ class MainActivity : ComponentActivity() {
         if (isFinishing) navigator.shutdown()
         super.onDestroy()
     }
+
+    private fun savedChanged() { savedVersion.value++ }
 
     // Checked on every return, since the user comes back here from Settings.
     override fun onResume() {

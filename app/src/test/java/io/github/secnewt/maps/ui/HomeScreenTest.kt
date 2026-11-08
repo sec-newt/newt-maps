@@ -1,5 +1,7 @@
 package io.github.secnewt.maps.ui
 
+import org.junit.Assert.assertTrue
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -36,6 +38,23 @@ class HomeScreenTest {
 
     @Test fun needsTurningOnLargeText() =
         composeRule.newtScreenshot("home-turnon-200pct", dark = true, fontScale = 2f) { HomeScreen(linksNeedTurningOn = true, onTurnOn = {}, mapApp = "Organic Maps") }
+
+    @Test fun homeSetDark() =
+        composeRule.newtScreenshot("settings-home-dark", dark = true) {
+            HomeScreen(linksNeedTurningOn = false, onTurnOn = {}, onBack = {}, mapApp = "Organic Maps", home = "1234 Main St, Garland")
+        }
+
+    @Test
+    fun clearHome() {
+        var cleared = false
+        composeRule.setContent {
+            io.github.secnewt.ui.NewtTheme(darkTheme = true) {
+                HomeScreen(linksNeedTurningOn = false, onTurnOn = {}, onBack = {}, mapApp = "Organic Maps", home = "1234 Main St, Garland", onClearHome = { cleared = true })
+            }
+        }
+        composeRule.onNodeWithText("Clear home").performScrollTo().performClick()
+        assertTrue(cleared)
+    }
 
     @Test fun allSetDark() {
         composeRule.newtScreenshot("home-allset-dark", dark = true) { HomeScreen(linksNeedTurningOn = false, onTurnOn = {}, mapApp = "Organic Maps") }

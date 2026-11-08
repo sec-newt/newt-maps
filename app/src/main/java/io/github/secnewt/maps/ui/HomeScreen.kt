@@ -1,5 +1,8 @@
 package io.github.secnewt.maps.ui
 
+import io.github.secnewt.ui.NewtButton
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Home
 import io.github.secnewt.ui.NewtSteps
 import io.github.secnewt.ui.NewtStep
 import io.github.secnewt.ui.NewtStepState
@@ -53,6 +56,9 @@ fun HomeScreen(
     practice: Boolean = false,
     onPractice: (Boolean) -> Unit = {},
     mapApp: String? = null,
+    /** My home's name and address, or null when it isn't set. */
+    home: String? = null,
+    onClearHome: () -> Unit = {},
 ) {
     Scaffold { padding ->
         Column(
@@ -108,12 +114,24 @@ fun HomeScreen(
                 )
             }
             if (onBack != null) {
+                NewtSettingsCard("Home", icon = Icons.Filled.Home) {
+                    Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text(
+                            home ?: "Not set. Search for your address, then tap Set as home on its card.",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        if (home != null) NewtButton("Clear home", onClick = onClearHome, icon = Icons.Filled.Delete)
+                    }
+                }
                 NewtSettingsCard("Driving", icon = Icons.Filled.Settings) {
                     NewtSwitchRow("Practice drives", practice, onPractice, hint = "Drives the route by itself, so you can try it")
                     NewtInfo(
                         "Routes come from your own server on persephone, over Tailscale. The map comes from OpenFreeMap, " +
                             "using OpenStreetMap data; it sees which area you look at, not who you are. Search uses " +
-                            "OpenStreetMap's Nominatim and sends only what you type.",
+                            "Photon (komoot's public server, OpenStreetMap data) and sends what you type plus your " +
+                            "location or the map's middle, so nearby places come first. Links are looked up with " +
+                            "OpenStreetMap's Nominatim. Home and saved places stay on this phone.",
                         label = "Where maps and routes come from",
                     )
                 }

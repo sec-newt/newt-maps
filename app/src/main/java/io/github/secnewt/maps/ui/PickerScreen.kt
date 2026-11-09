@@ -34,6 +34,8 @@ sealed interface PickerState {
         val canOpenBrowser: Boolean,
         val searchText: String? = null,
         val apps: List<MapApp> = emptyList(),
+        /** Ask Google (test): being re-tested on a real phone, see PLAN.md. */
+        val canAskGoogle: Boolean = false,
     ) : PickerState
 }
 
@@ -54,6 +56,7 @@ fun PickerScreen(
     onCopy: () -> Unit,
     onOpenBrowser: () -> Unit,
     onSearchIn: (MapApp) -> Unit = {},
+    onAskGoogle: () -> Unit = {},
 ) {
     Scaffold { padding ->
         Column(
@@ -70,7 +73,7 @@ fun PickerScreen(
                     Text(state.message, style = MaterialTheme.typography.headlineSmall)
                 }
                 is PickerState.Ready -> Ready(state, onOpenIn, onCopy, onOpenBrowser)
-                is PickerState.Failed -> Failed(state, onOpenBrowser, onSearchIn)
+                is PickerState.Failed -> Failed(state, onOpenBrowser, onSearchIn, onAskGoogle)
             }
         }
     }
@@ -94,12 +97,21 @@ private fun Ready(state: PickerState.Ready, onOpenIn: (MapApp) -> Unit, onCopy: 
 }
 
 @Composable
-private fun Failed(state: PickerState.Failed, onOpenBrowser: () -> Unit, onSearchIn: (MapApp) -> Unit) {
+private fun Failed(
+    state: PickerState.Failed,
+    onOpenBrowser: () -> Unit,
+    onSearchIn: (MapApp) -> Unit,
+    onAskGoogle: () -> Unit,
+) {
     Heading("Couldn't find it")
     Text(whyText(state.why), style = MaterialTheme.typography.titleLarge)
     state.searchText?.let { text ->
         if (state.apps.isNotEmpty()) Text("Search for \"$text\" in:", style = MaterialTheme.typography.bodyLarge)
         state.apps.forEach { app -> BigButton("Search in ${app.label}", primary = true) { onSearchIn(app) } }
+    }
+    if (state.canAskGoogle) {
+        BigButton("Ask Google (test)", onClick = onAskGoogle)
+        Text("Sends this link to Google.", style = MaterialTheme.typography.bodyLarge)
     }
     if (state.canOpenBrowser) {
         BigButton("Open in browser", primary = state.searchText == null || state.apps.isEmpty(), onClick = onOpenBrowser)

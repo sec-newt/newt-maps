@@ -177,6 +177,12 @@ class MainActivity : ComponentActivity() {
             controller.stopDriving(this)
             controller.clearRoute()
         }
+        // While driving, the line follows Ferrostar's current route: going off route gets a
+        // new one, and the old line would otherwise stay on the map.
+        val drivingLine = navState.routeGeometry
+        LaunchedEffect(drivingLine, driving) {
+            if (driving && drivingLine.size >= 2) controller.drawRoute(drivingLine.map { it.lat to it.lng })
+        }
         // While driving: move the arrow, keep the screen on, and finish on arrival.
         LaunchedEffect(navState, driving) {
             if (!driving) return@LaunchedEffect
@@ -222,7 +228,8 @@ class MainActivity : ComponentActivity() {
                     when {
                         hits.size == 1 && shortened == null -> pick(hits.single())
                         hits.isNotEmpty() -> MapCard.Results(text, hits, shortened).let { results = it; showResults(it) }
-                        outcome == SearchOutcome.NoInternet -> card = MapCard.Note("No internet, so search can't run.")
+                        outcome == SearchOutcome.NoInternet -> card = MapCard.Note("Can't reach the search server. Check your connection (and Tailscale, if it handles DNS).")
+                        outcome == SearchOutcome.TimedOut -> card = MapCard.Note("The search server took too long to answer. Try again.")
                         outcome == SearchOutcome.ServerProblem -> card = MapCard.Note("The search server isn't answering. Try again in a minute.")
                         else -> { card = MapCard.Note("Couldn't find \"$text\"."); controller.clearPlace() }
                     }

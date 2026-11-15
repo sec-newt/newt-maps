@@ -128,6 +128,9 @@ class PhotonSearchTest {
     @Test fun offline() =
         assertEquals(SearchOutcome.NoInternet, PhotonSearch(FakeTransport { throw IOException("offline") }).search("El Fenix", garland))
 
+    @Test fun slowServerIsNotOffline() =
+        assertEquals(SearchOutcome.TimedOut, PhotonSearch(FakeTransport { throw java.net.SocketTimeoutException("slow") }).search("El Fenix", garland))
+
     @Test fun serverErrorIsNotOffline() =
         assertEquals(SearchOutcome.ServerProblem, PhotonSearch(FakeTransport { throw HttpStatusException(503) }).search("El Fenix", garland))
 

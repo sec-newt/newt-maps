@@ -6,6 +6,7 @@ import io.github.secnewt.maps.link.Transport
 import org.json.JSONException
 import org.json.JSONObject
 import java.io.IOException
+import java.net.SocketTimeoutException
 import java.net.URLEncoder
 import kotlin.math.asin
 import kotlin.math.cos
@@ -24,6 +25,8 @@ sealed interface SearchOutcome {
     data class Results(val hits: List<SearchHit>, val shortenedTo: String? = null) : SearchOutcome
     data object NotFound : SearchOutcome
     data object NoInternet : SearchOutcome
+    /** The server was reached (or looked up) but didn't answer in time: a slow link, not none. */
+    data object TimedOut : SearchOutcome
     data object ServerProblem : SearchOutcome
 }
 
@@ -68,7 +71,13 @@ class PhotonSearch(
             transport.get(url)
         } catch (_: HttpStatusException) {
             return SearchOutcome.ServerProblem
-        } catch (_: IOException) {
+        } catch (e: SocketTimeoutException) {
+            android.util.Log.w("PhotonSearch", "search timed out", e)
+            return SearchOutcome.TimedOut
+        } catch (e: IOException) {
+            // Logged with its type (UnknownHostException = DNS, ConnectException, SSL…), since
+            // "no internet" alone can't tell those apart.
+            android.util.Log.w("PhotonSearch", "search failed", e)
             return SearchOutcome.NoInternet
         }
         return try {

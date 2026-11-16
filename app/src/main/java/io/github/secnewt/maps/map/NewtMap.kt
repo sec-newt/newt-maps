@@ -82,11 +82,16 @@ class MapController {
     /** Draw a route ([points] as lat, lng) and fit it on screen. */
     fun showRoute(points: List<Pair<Double, Double>>) {
         if (points.size < 2) return
-        val line = org.maplibre.geojson.LineString.fromLngLats(points.map { (lat, lng) -> Point.fromLngLat(lng, lat) })
-        style?.getSourceAs<GeoJsonSource>(MapStyle.ROUTE_SOURCE)?.setGeoJson(line)
+        drawRoute(points)
         val bounds = org.maplibre.android.geometry.LatLngBounds.Builder().includes(points.map { (lat, lng) -> LatLng(lat, lng) }).build()
         // Room at the top for the search box and at the bottom for the route card.
         map?.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds, 80, 260, 80, 700), 600)
+    }
+
+    /** Draw a route ([points] as lat, lng) without moving the map: for a new route while driving. */
+    fun drawRoute(points: List<Pair<Double, Double>>) {
+        val line = org.maplibre.geojson.LineString.fromLngLats(points.map { (lat, lng) -> Point.fromLngLat(lng, lat) })
+        style?.getSourceAs<GeoJsonSource>(MapStyle.ROUTE_SOURCE)?.setGeoJson(line)
     }
 
     fun clearRoute() {

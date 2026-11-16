@@ -42,7 +42,9 @@ class Navigator(context: Context) {
     private val simulated = SimulatedLocationProvider(warpFactor = 2u)
     private val location = NavigationLocationProvider(AndroidLocationProvider(app), simulated)
     private val http = OkHttpClient.Builder().callTimeout(Duration.ofSeconds(20)).build().toOkHttpClientProvider()
-    private val voice = AndroidTtsObserver(app)
+    // The speech engine starts only when asked to; without start() every turn is silent.
+    // Started now, so it's ready by the first spoken turn (it takes a moment to wake up).
+    private val voice = AndroidTtsObserver(app).also { it.start() }
 
     private var avoidTolls: Boolean? = null
     private var core: FerrostarCore? = null
@@ -67,7 +69,9 @@ class Navigator(context: Context) {
      * when there's no location or the server can't be reached.
      */
     suspend fun route(lat: Double, lng: Double, avoidTolls: Boolean): Route {
-        val here = location.lastLocation()
+        // Android's last known location can be hours old (from wherever GPS last ran);
+        // routing from there draws a line that starts somewhere else. Wait for a new fix.
+        val here = location.lastLocation()?.takeIf { FixAge.isFresh(it.elapsedRealtimeNanos, android.os.SystemClock.elapsedRealtimeNanos()) }
             ?: withTimeoutOrNull(15_000) { location.locationUpdates(1000).first() }
             ?: throw RouteProblem("Can't tell where you are yet. Step outside or wait a moment, then try again.")
         val routes = try {
@@ -119,6 +123,14 @@ class Navigator(context: Context) {
             CourseFiltering.SNAP_TO_ROUTE,
         )
     }
+}
+
+/** Kept apart from [Navigator] so it can be tested without Ferrostar's native code. */
+object FixAge {
+    private const val MAX_NANOS = 30_000_000_000L
+
+    /** A location fix is fresh enough to route from when it's under 30 seconds old. */
+    fun isFresh(fixNanos: Long, nowNanos: Long): Boolean = nowNanos - fixNanos in 0..MAX_NANOS
 }
 
 /**

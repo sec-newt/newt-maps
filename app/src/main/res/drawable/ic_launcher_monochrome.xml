@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Single-color version for Android's themed icons: the newt and a plain badge, no colors.
-     Put the app's badge symbol here too, in white. -->
+<!-- Single-color version for Android's themed icons: the newt and the map pin, in white. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
@@ -13,6 +12,6 @@
         <path android:pathData="M52,33 Q60,32 65,26" android:strokeWidth="5" android:strokeLineCap="round" android:strokeColor="#FFFFFFFF" />
         <path android:pathData="M40.5,50 Q33,52 29.5,59" android:strokeWidth="5" android:strokeLineCap="round" android:strokeColor="#FFFFFFFF" />
         <path android:pathData="M51.5,50 Q59,52 62.5,59" android:strokeWidth="5" android:strokeLineCap="round" android:strokeColor="#FFFFFFFF" />
-        <path android:fillColor="#FFFFFFFF" android:pathData="M58,75 a17,17 0 1,0 34,0 a17,17 0 1,0 -34,0 Z" />
+        <path android:fillColor="#FFFFFFFF" android:fillType="evenOdd" android:pathData="M75,86 C71.5,81.5 67.5,77 67.5,72 a7.5,7.5 0 1,1 15,0 C82.5,77 78.5,81.5 75,86 Z M72,72 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0 Z" />
     </group>
 </vector>

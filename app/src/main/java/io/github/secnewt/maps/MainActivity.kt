@@ -158,6 +158,10 @@ class MainActivity : ComponentActivity() {
         var avoidHighways by remember { mutableStateOf(navPrefs.getBoolean("avoid_highways", false)) }
         // The marked roads, and a count bumped on every change so the route card redraws.
         var roadsVersion by remember { mutableStateOf(0) }
+        var roadsListOpen by remember { mutableStateOf(false) }
+        // The route being looked up; a newer request (another avoid choice) cancels it, so a
+        // slow answer for the old choices can't land on top of the new one.
+        var routeJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
         // Read fresh each time: a lambda made earlier would otherwise keep the old choices.
         val currentOptions = { roadsVersion.let { RouteOptions(avoidTolls, avoidHighways, avoided.activeSpots()) } }
         val options = currentOptions()
@@ -169,18 +173,20 @@ class MainActivity : ComponentActivity() {
             withLocation {
                 destination = place
                 card = MapCard.Note("Finding a route…")
-                scope.launch {
+                routeJob?.cancel()
+                routeJob = scope.launch {
                     try {
                         val found = navigator.route(place.lat, place.lng, currentOptions())
                         route = found
                         card = null
                         controller.showRoute(found.geometry.map { it.lat to it.lng })
                     } catch (problem: RouteProblem) {
-                        card = MapCard.Note(problem.message.orEmpty())
+                        card = MapCard.Note(problem.message.orEmpty(), roadsButton = problem.roads)
                     }
                 }
             }
         }
+        val tooMany = MapCard.Note("That's too many spots to avoid at once (the route server takes ${AvoidedRoads.MAX_SPOTS}). Turn off or forget a road first.", roadsButton = true)
         // An avoid choice changed: find the route again with it.
         val reroute = {
             route = null
@@ -320,8 +326,7 @@ class MainActivity : ComponentActivity() {
             },
             onDirections = findRoute,
             preview = route?.takeIf { !driving }?.let {
-                NavGuidance.preview(it, destination?.name.orEmpty(), avoidTolls, practice.value)
-                    .copy(avoidHighways = avoidHighways, roads = roadsVersion.let { avoided.roads.map { r -> RoadChoice(r.name, r.on) } })
+                NavGuidance.preview(it, destination?.name.orEmpty(), avoidTolls, practice.value).copy(avoidHighways = avoidHighways)
             },
             onStart = {
                 route?.let { found ->
@@ -333,6 +338,9 @@ class MainActivity : ComponentActivity() {
                 }
             },
             avoid = AvoidActions(
+                roads = roadsVersion.let { avoided.roads.map { r -> RoadChoice(r.name, r.on) } },
+                listOpen = roadsListOpen,
+                onList = { roadsListOpen = it },
                 onToggleTolls = {
                     avoidTolls = !avoidTolls
                     navPrefs.edit().putBoolean("avoid_tolls", avoidTolls).apply()
@@ -343,14 +351,23 @@ class MainActivity : ComponentActivity() {
                     navPrefs.edit().putBoolean("avoid_highways", avoidHighways).apply()
                     reroute()
                 },
-                onSetRoad = { name, on -> avoided.setOn(name, on); roadsVersion++; reroute() },
+                onSetRoad = { name, on ->
+                    if (avoided.setOn(name, on)) { roadsVersion++; reroute() } else { roadsListOpen = false; card = tooMany }
+                },
                 onRemoveRoad = { name -> avoided.remove(name); roadsVersion++; reroute() },
             ),
             onAvoidRoad = { ask ->
-                avoided.add(ask.road)
-                roadsVersion++
-                card = MapCard.Note("Avoiding ${ask.road.name} at that spot. Turn it off for a trip under Avoid roads on the route card.")
-                destination?.takeIf { route != null }?.let { reroute() }
+                if (!avoided.add(ask.road)) {
+                    card = tooMany
+                } else {
+                    roadsVersion++
+                    if (route != null) {
+                        // A route is waiting: find it again around the new spot.
+                        reroute()
+                    } else {
+                        card = MapCard.Note("Avoiding ${ask.road.name} at that spot. Turn it off for a trip under Avoid roads on the route card.")
+                    }
+                }
             },
             onClosePreview = { route = null; controller.clearRoute() },
             guidance = guidance,

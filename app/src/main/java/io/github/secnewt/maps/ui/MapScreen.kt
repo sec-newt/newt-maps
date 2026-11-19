@@ -80,8 +80,11 @@ sealed interface MapCard {
     /** Everything a search found, nearest first-ish; tap one to see it. */
     data class Results(val query: String, val hits: List<SearchHit>, val shortenedTo: String? = null, val title: String? = null) : MapCard
 
-    /** Something went wrong or needs saying ("Couldn't find that"). */
-    data class Note(val text: String) : MapCard
+    /**
+     * Something went wrong or needs saying ("Couldn't find that"). [roadsButton]: the
+     * problem is the marked roads, so offer the list to turn some off.
+     */
+    data class Note(val text: String, val roadsButton: Boolean = false) : MapCard
 
     /** A road I pressed and held: avoid it there? */
     data class AvoidRoad(val road: io.github.secnewt.maps.nav.AvoidedRoad) : MapCard
@@ -134,6 +137,7 @@ fun MapScreen(
 ) {
     Box(Modifier.fillMaxSize()) {
         map()
+        if (avoid.listOpen && guidance == null) AvoidRoadsDialog(avoid)
         if (guidance != null) {
             TurnBanner(guidance, Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(12.dp))
             TripBar(guidance, onMute, onStop, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(12.dp))
@@ -157,11 +161,13 @@ fun MapScreen(
                 MapButton(NewtIcons.ZoomOut, "Zoom out", onZoomOut)
                 MapButton(NewtIcons.MyLocation, "Where am I", onMyLocation)
                 MapButton(Icons.Filled.Home, "Go home", onHome)
-                if (preview != null) {
+                // A card (a street tapped, a road to avoid) shows over a found route;
+                // closing it brings the route back.
+                if (card == null && preview != null) {
                     PreviewCard(preview, onStart, avoid, onClosePreview, Modifier.weight(1f, fill = false))
                 } else if (card != null) {
                     CardView(
-                        card, onCloseCard, onShare, onCopy, onOpenElsewhere, onDirections, onPick, onAvoidRoad,
+                        card, onCloseCard, onShare, onCopy, onOpenElsewhere, onDirections, onPick, onAvoidRoad, { avoid.onList(true) },
                         SavedActions(placeSaved, placeIsHome, onSave, onRename, onRemove, onSetHome),
                         Modifier.weight(1f, fill = false),
                     )
@@ -231,6 +237,7 @@ private fun CardView(
     onDirections: (MapCard.Place) -> Unit,
     onPick: (SearchHit) -> Unit,
     onAvoidRoad: (MapCard.AvoidRoad) -> Unit,
+    onRoadsList: () -> Unit,
     saved: SavedActions,
     modifier: Modifier,
 ) {
@@ -294,6 +301,9 @@ private fun CardView(
                 ) {
                     card.hits.forEach { hit -> ResultRow(hit, onPick) }
                 }
+            }
+            if (card is MapCard.Note && card.roadsButton) {
+                NewtPrimaryButton("Roads to avoid", onClick = onRoadsList, large = true, modifier = Modifier.fillMaxWidth())
             }
             if (card is MapCard.AvoidRoad) {
                 // The button first: with big text the explanation is what scrolls out of view.

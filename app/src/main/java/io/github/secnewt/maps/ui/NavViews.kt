@@ -64,15 +64,20 @@ data class RoutePreview(
     val avoidTolls: Boolean,
     val practice: Boolean,
     val avoidHighways: Boolean = false,
-    /** The roads I've marked to avoid, and whether this trip avoids each. */
-    val roads: List<RoadChoice> = emptyList(),
 )
 
 /** A marked road on the route card's list: its name, and whether this trip avoids it. */
 data class RoadChoice(val name: String, val on: Boolean)
 
-/** What the route card's avoid buttons do. Each change finds the route again. */
+/**
+ * The roads I've marked and what the avoid buttons do. Each change finds the route again.
+ * Whether the list is open lives outside the route card, so it stays open while a new
+ * route is found (the card is gone for that moment) and can open with no route at all.
+ */
 class AvoidActions(
+    val roads: List<RoadChoice> = emptyList(),
+    val listOpen: Boolean = false,
+    val onList: (Boolean) -> Unit = {},
     val onToggleTolls: () -> Unit = {},
     val onToggleHighways: () -> Unit = {},
     val onSetRoad: (String, Boolean) -> Unit = { _, _ -> },
@@ -125,7 +130,6 @@ private val OnGo = Color(0xFF0B0C10)
 /** The card for a found route: time, distance, arrival, tolls, and a big Start. */
 @Composable
 internal fun PreviewCard(preview: RoutePreview, onStart: () -> Unit, avoid: AvoidActions, onClose: () -> Unit, modifier: Modifier = Modifier) {
-    var listOpen by remember { mutableStateOf(false) }
     Surface(
         shape = RoundedCornerShape(20.dp),
         color = MaterialTheme.colorScheme.surface,
@@ -172,22 +176,22 @@ internal fun PreviewCard(preview: RoutePreview, onStart: () -> Unit, avoid: Avoi
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 AvoidToggle("No tolls", "tolls", preview.avoidTolls, avoid.onToggleTolls)
                 AvoidToggle("No highways", "highways", preview.avoidHighways, avoid.onToggleHighways)
-                val avoiding = preview.roads.count { it.on }
+                val avoiding = avoid.roads.count { it.on }
                 AvoidToggle(
                     if (avoiding == 0) "Avoid roads" else "Avoiding $avoiding",
                     null,
                     avoiding > 0,
-                    { listOpen = true },
+                    { avoid.onList(true) },
                 )
             }
         }
     }
-    if (listOpen) AvoidRoadsDialog(preview.roads, avoid, onClose = { listOpen = false })
 }
 
 /** The roads I've marked: a switch each for this trip, and a way to forget one. */
 @Composable
-private fun AvoidRoadsDialog(roads: List<RoadChoice>, avoid: AvoidActions, onClose: () -> Unit) {
+internal fun AvoidRoadsDialog(avoid: AvoidActions, onClose: () -> Unit = { avoid.onList(false) }) {
+    val roads = avoid.roads
     var forgetting by remember { mutableStateOf<String?>(null) }
     AlertDialog(
         onDismissRequest = onClose,

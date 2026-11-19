@@ -29,25 +29,40 @@ data class RouteOptions(
  */
 class AvoidedRoads(private val file: File) {
 
+    companion object {
+        /** Valhalla's default max_exclude_locations; more and it refuses every route. */
+        const val MAX_SPOTS = 50
+    }
+
     var roads: List<AvoidedRoad> = emptyList()
         private set
 
     init { load() }
 
-    /** Avoid [road] too. Spots on a road already in the list join it (and turn it on). */
-    fun add(road: AvoidedRoad) {
+    /**
+     * Avoid [road] too. Spots on a road already in the list join it (and turn it on).
+     * False, and nothing changes, when that would ask Valhalla to avoid more than [MAX_SPOTS].
+     */
+    fun add(road: AvoidedRoad): Boolean {
         val same = roads.firstOrNull { it.name == road.name }
-        roads = if (same == null) {
+        val changed = if (same == null) {
             roads + road
         } else {
             roads.map { if (it === same) it.copy(spots = (it.spots + road.spots).distinct(), on = true) else it }
         }
+        if (changed.filter { it.on }.sumOf { it.spots.size } > MAX_SPOTS) return false
+        roads = changed
         write()
+        return true
     }
 
-    fun setOn(name: String, on: Boolean) {
-        roads = roads.map { if (it.name == name) it.copy(on = on) else it }
+    /** Turn a road on or off for trips. False when turning it on would pass [MAX_SPOTS]. */
+    fun setOn(name: String, on: Boolean): Boolean {
+        val changed = roads.map { if (it.name == name) it.copy(on = on) else it }
+        if (on && changed.filter { it.on }.sumOf { it.spots.size } > MAX_SPOTS) return false
+        roads = changed
         write()
+        return true
     }
 
     fun remove(name: String) {
@@ -108,26 +123,30 @@ object RoadLocator {
 
     /**
      * The nearest named road in a /locate answer, with a spot on each nearby piece of the
-     * same road. "Same" means a name starting with the nearest one's first name: pressing
-     * I 635 also catches "I 635 TEXPR" (the express lanes next to it) and the other direction,
-     * but not "Lyndon B. Johnson Service Road", which is the way around. Null if no named
-     * road is there.
+     * same road. "Same" means the same name (the other direction), or the name plus more
+     * words on a road of the same class: pressing I 635 also catches "I 635 TEXPR" (the
+     * express lanes beside it, also a motorway), but not "Lyndon B. Johnson Service Road"
+     * or an "I 635 Frontage Road" (smaller roads: the way around), nor "I 635E". Null if no
+     * named road is there, or the answer can't be read.
      */
-    fun roadAt(answer: String): AvoidedRoad? {
-        val edges = try {
-            JSONArray(answer).optJSONObject(0)?.optJSONArray("edges") ?: return null
-        } catch (_: JSONException) {
-            return null
-        }
-        val all = (0 until edges.length()).mapNotNull { edges.optJSONObject(it) }
+    fun roadAt(answer: String): AvoidedRoad? = try {
+        val edges = JSONArray(answer).optJSONObject(0)?.optJSONArray("edges")
+        val all = (0 until (edges?.length() ?: 0)).mapNotNull { edges!!.optJSONObject(it) }
+            .filter { it.has("correlated_lat") && it.has("correlated_lon") }
             .sortedBy { it.optDouble("distance", Double.MAX_VALUE) }
-        val nearest = all.firstOrNull { names(it).isNotEmpty() } ?: return null
-        val key = names(nearest).first()
-        val spots = all.filter { edge -> names(edge).any { it.startsWith(key) } }
-            .map { Spot(round(it.getDouble("correlated_lat")), round(it.getDouble("correlated_lon"))) }
-            .distinct()
-        return AvoidedRoad(names(nearest).take(2).joinToString(" · "), spots)
+        all.firstOrNull { names(it).isNotEmpty() }?.let { nearest ->
+            val key = names(nearest).first()
+            val kind = kind(nearest)
+            val spots = all.filter { edge -> names(edge).any { it == key || (it.startsWith("$key ") && kind(edge) == kind) } }
+                .map { Spot(round(it.getDouble("correlated_lat")), round(it.getDouble("correlated_lon"))) }
+                .distinct()
+            AvoidedRoad(names(nearest).take(2).joinToString(" · "), spots)
+        }
+    } catch (_: JSONException) {
+        null
     }
+
+    private fun kind(edge: JSONObject): String? = edge.optJSONObject("edge")?.optJSONObject("classification")?.optString("classification")
 
     private fun names(edge: JSONObject): List<String> {
         val list = edge.optJSONObject("edge_info")?.optJSONArray("names") ?: return emptyList()

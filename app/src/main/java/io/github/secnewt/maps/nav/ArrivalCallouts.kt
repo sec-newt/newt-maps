@@ -50,7 +50,8 @@ object ArrivalCallouts {
         val steps = route.steps
         // Each step's instructions describe the maneuver at its end, so the last road is the
         // step whose banner says "arrive".
-        val last = steps.indexOfLast { step -> step.visualInstructions.any { it.primaryContent.maneuverType == ManeuverType.ARRIVE } }
+        // (Not the 0 m "you've arrived" step at the very end, should it ever carry one too.)
+        val last = steps.indexOfLast { step -> step.distance > 0 && step.visualInstructions.any { it.primaryContent.maneuverType == ManeuverType.ARRIVE } }
         if (last < 0) return route
         val arrive = steps[last].visualInstructions.last { it.primaryContent.maneuverType == ManeuverType.ARRIVE }
         val side = side(arrive.primaryContent.maneuverModifier)

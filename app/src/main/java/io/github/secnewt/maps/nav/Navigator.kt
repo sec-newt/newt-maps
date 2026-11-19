@@ -30,8 +30,11 @@ import uniffi.ferrostar.WellKnownRouteProvider
 import uniffi.ferrostar.stepAdvanceDistanceEntryAndExit
 import uniffi.ferrostar.stepAdvanceDistanceToEndOfStep
 
-/** Why a route couldn't be found, in words for the card. */
-class RouteProblem(message: String) : Exception(message)
+/**
+ * Why a route couldn't be found, in words for the card. [roads]: the marked roads are why,
+ * so the card offers the list to turn some off.
+ */
+class RouteProblem(message: String, val roads: Boolean = false) : Exception(message)
 
 /**
  * Turn-by-turn driving, on Ferrostar. Routes come from my own Valhalla server ([RouteServer]),
@@ -100,8 +103,11 @@ class Navigator(context: Context) {
             // The server answered, but the answer couldn't be used: say so, with the reason,
             // instead of blaming the network.
             android.util.Log.w("Navigator", "route answer unusable", e)
-            // Valhalla refuses outright when the marked spots leave no way through.
-            if (options.avoid.isNotEmpty()) throw RouteProblem("No route found that avoids your marked roads. Tap Avoid roads and turn some off, then try again.")
+            // Valhalla refuses outright (an error status) when the marked spots leave no way
+            // through. Other failures keep their own reason.
+            if (options.avoid.isNotEmpty() && e is com.stadiamaps.ferrostar.core.InvalidStatusCodeException) {
+                throw RouteProblem("No route found that avoids your marked roads. Turn some off, then try again.", roads = true)
+            }
             throw RouteProblem("The route server answered, but its route couldn't be read. (${e.javaClass.simpleName}: ${e.message?.take(160)})")
         }
         return routes.firstOrNull() ?: throw RouteProblem("No route found to there.")

@@ -184,6 +184,8 @@ fun NewtMap(
     start: CameraPosition,
     onTap: (MapCard?) -> Unit,
     modifier: Modifier = Modifier,
+    /** Press and hold: where, to look up the road there (to avoid it). */
+    onLongPress: (Double, Double) -> Unit = { _, _ -> },
 ) {
     val context = LocalContext.current
     val textScale = LocalDensity.current.fontScale
@@ -226,6 +228,10 @@ fun NewtMap(
                     "${map.queryRenderedFeatures(all, MapStyle.STREET_HIT_LAYER).size} named roads, layers ${map.style?.layers?.size}")
             }
             mapView.addOnDidFailLoadingMapListener { error -> android.util.Log.w("NewtMap", "map failed to load: $error") }
+            map.addOnMapLongClickListener { point ->
+                onLongPress(point.latitude, point.longitude)
+                true
+            }
             map.addOnMapClickListener { point ->
                 val screen = map.projection.toScreenLocation(point)
                 val reach = 24 * context.resources.displayMetrics.density

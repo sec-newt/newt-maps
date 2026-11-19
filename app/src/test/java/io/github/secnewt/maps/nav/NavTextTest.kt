@@ -42,12 +42,26 @@ class NavTextTest {
         assertEquals(Turn.STRAIGHT, NavText.turn(ManeuverType.DEPART, null))
     }
 
+    @Suppress("UNCHECKED_CAST")
+    private fun auto(options: Map<String, Any>) = (options["costing_options"] as Map<String, Any>)["auto"] as Map<String, Any>
+
     @Test
     fun `avoiding tolls tells Valhalla to stay off them, in miles`() {
-        @Suppress("UNCHECKED_CAST")
-        fun tolls(options: Map<String, Any>) = ((options["costing_options"] as Map<String, Any>)["auto"] as Map<String, Any>)["use_tolls"]
-        assertEquals(0.0, tolls(NavText.valhallaOptions(avoidTolls = true)))
-        assertEquals(0.5, tolls(NavText.valhallaOptions(avoidTolls = false)))
-        assertEquals("miles", NavText.valhallaOptions(true)["units"])
+        assertEquals(0.0, auto(NavText.valhallaOptions(RouteOptions(avoidTolls = true)))["use_tolls"])
+        assertEquals(0.5, auto(NavText.valhallaOptions(RouteOptions(avoidTolls = false)))["use_tolls"])
+        assertEquals("miles", NavText.valhallaOptions(RouteOptions(true))["units"])
+    }
+
+    @Test
+    fun `avoiding highways turns them down all the way`() {
+        assertEquals(0.0, auto(NavText.valhallaOptions(RouteOptions(true, avoidHighways = true)))["use_highways"])
+        assertEquals(1.0, auto(NavText.valhallaOptions(RouteOptions(true, avoidHighways = false)))["use_highways"])
+    }
+
+    @Test
+    fun `marked spots go to Valhalla as places to exclude, and only when there are some`() {
+        val options = NavText.valhallaOptions(RouteOptions(true, avoid = listOf(Spot(32.85, -96.64))))
+        assertEquals(listOf(mapOf("lat" to 32.85, "lon" to -96.64)), options["exclude_locations"])
+        assertEquals(null, NavText.valhallaOptions(RouteOptions(true))["exclude_locations"])
     }
 }

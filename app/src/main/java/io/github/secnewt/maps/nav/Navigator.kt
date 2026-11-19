@@ -1,6 +1,7 @@
 package io.github.secnewt.maps.nav
 
 import android.content.Context
+import com.stadiamaps.ferrostar.core.AlternativeRouteProcessor
 import com.stadiamaps.ferrostar.core.AndroidTtsObserver
 import com.stadiamaps.ferrostar.core.FerrostarCore
 import com.stadiamaps.ferrostar.core.NavigationState
@@ -14,7 +15,9 @@ import java.time.Duration
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
+import okhttp3.RequestBody.Companion.toRequestBody
 import uniffi.ferrostar.CourseFiltering
 import uniffi.ferrostar.GeographicCoordinate
 import uniffi.ferrostar.NavigationControllerConfig
@@ -41,34 +44,43 @@ class Navigator(context: Context) {
     private val app = context.applicationContext
     private val simulated = SimulatedLocationProvider(warpFactor = 2u)
     private val location = NavigationLocationProvider(AndroidLocationProvider(app), simulated)
-    private val http = OkHttpClient.Builder().callTimeout(Duration.ofSeconds(20)).build().toOkHttpClientProvider()
+    private val plainHttp = OkHttpClient.Builder().callTimeout(Duration.ofSeconds(20)).build()
+    private val http = plainHttp.toOkHttpClientProvider()
     // The speech engine starts only when asked to; without start() every turn is silent.
     // Started now, so it's ready by the first spoken turn (it takes a moment to wake up).
     private val voice = AndroidTtsObserver(app).also { it.start() }
 
-    private var avoidTolls: Boolean? = null
+    private var options: RouteOptions? = null
     private var core: FerrostarCore? = null
 
-    // A new core when the toll choice changes, since route options are fixed per core.
-    private fun core(avoidTolls: Boolean): FerrostarCore {
-        core?.takeIf { this.avoidTolls == avoidTolls }?.let { return it }
+    // A new core when the route options change (tolls, highways, roads to avoid), since
+    // they're fixed per core. Going off route asks with the same options, so a new route
+    // still avoids the same roads.
+    private fun core(options: RouteOptions): FerrostarCore {
+        core?.takeIf { this.options == options }?.let { return it }
         core?.stopNavigation()
-        val provider = WellKnownRouteProvider.Valhalla(RouteServer.URL, "auto").withJsonOptions(NavText.valhallaOptions(avoidTolls))
+        val provider = WellKnownRouteProvider.Valhalla(RouteServer.URL, "auto").withJsonOptions(NavText.valhallaOptions(options))
         return FerrostarCore(provider, http, location, CONFIG).also {
             it.spokenInstructionObserver = voice
+            // A new route after going off course gets the early "destination on the right" too.
+            it.alternativeRouteProcessor = object : AlternativeRouteProcessor {
+                override fun loadedAlternativeRoutes(core: FerrostarCore, routes: List<Route>) {
+                    routes.firstOrNull()?.let { route -> core.replaceRoute(ArrivalCallouts.addTo(route)) }
+                }
+            }
             core = it
-            this.avoidTolls = avoidTolls
+            this.options = options
         }
     }
 
     /** The current trip, for the screen. Empty until a route is started. */
-    fun state(avoidTolls: Boolean): StateFlow<NavigationState> = core(avoidTolls).state
+    fun state(options: RouteOptions): StateFlow<NavigationState> = core(options).state
 
     /**
      * A route from where I am to [lat],[lng]. Throws [RouteProblem] with words for the card
      * when there's no location or the server can't be reached.
      */
-    suspend fun route(lat: Double, lng: Double, avoidTolls: Boolean): Route {
+    suspend fun route(lat: Double, lng: Double, options: RouteOptions): Route {
         // Android's last known location can be hours old (from wherever GPS last ran);
         // routing from there draws a line that starts somewhere else. Wait for a new fix.
         val here = location.lastLocation()?.takeIf { FixAge.isFresh(it.elapsedRealtimeNanos, android.os.SystemClock.elapsedRealtimeNanos()) }
@@ -77,7 +89,7 @@ class Navigator(context: Context) {
         val routes = try {
             // Off the main thread: Ferrostar reads the server's answer on whatever thread
             // calls it, and Android refuses network reads on the main one.
-            val core = core(avoidTolls)
+            val core = core(options)
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 core.getRoutes(here.toUserLocation(), listOf(Waypoint(coordinate = GeographicCoordinate(lat, lng), kind = WaypointKind.BREAK)))
             }
@@ -88,15 +100,36 @@ class Navigator(context: Context) {
             // The server answered, but the answer couldn't be used: say so, with the reason,
             // instead of blaming the network.
             android.util.Log.w("Navigator", "route answer unusable", e)
+            // Valhalla refuses outright when the marked spots leave no way through.
+            if (options.avoid.isNotEmpty()) throw RouteProblem("No route found that avoids your marked roads. Tap Avoid roads and turn some off, then try again.")
             throw RouteProblem("The route server answered, but its route couldn't be read. (${e.javaClass.simpleName}: ${e.message?.take(160)})")
         }
         return routes.firstOrNull() ?: throw RouteProblem("No route found to there.")
     }
 
+    /**
+     * The road at [lat],[lng] and its other lanes, to avoid. Null when there's no named road
+     * there. Throws [RouteProblem] when the route server can't be reached.
+     */
+    suspend fun roadAt(lat: Double, lng: Double): AvoidedRoad? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        val request = okhttp3.Request.Builder().url(RouteServer.LOCATE_URL)
+            .post(RoadLocator.request(lat, lng).toRequestBody("application/json".toMediaType())).build()
+        try {
+            plainHttp.newCall(request).execute().use { answer ->
+                if (!answer.isSuccessful) throw RouteProblem("The route server couldn't look up that road (error ${answer.code}).")
+                RoadLocator.roadAt(answer.body.string())
+            }
+        } catch (e: java.io.IOException) {
+            android.util.Log.w("Navigator", "locate failed", e)
+            throw RouteProblem("Couldn't reach the route server on persephone. Is it on, and is Tailscale connected?")
+        }
+    }
+
     /** Start driving [route]; with [practice], the location moves along it by itself. */
-    fun start(route: Route, avoidTolls: Boolean, practice: Boolean) {
-        if (practice) location.enableSimulationOn(route) else location.disableSimulation()
-        core(avoidTolls).startNavigation(route)
+    fun start(route: Route, options: RouteOptions, practice: Boolean) {
+        val called = ArrivalCallouts.addTo(route)
+        if (practice) location.enableSimulationOn(called) else location.disableSimulation()
+        core(options).startNavigation(called)
     }
 
     fun stop() {
@@ -141,4 +174,5 @@ object FixAge {
 object RouteServer {
     const val HOST = "100.113.230.33"
     const val URL = "http://$HOST:8002/route"
+    const val LOCATE_URL = "http://$HOST:8002/locate"
 }

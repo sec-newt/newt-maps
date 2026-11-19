@@ -40,13 +40,17 @@ import io.github.secnewt.maps.search.SearchHit
 import io.github.secnewt.maps.search.SearchOutcome
 import io.github.secnewt.maps.map.MapController
 import io.github.secnewt.maps.map.NewtMap
+import io.github.secnewt.maps.nav.AvoidedRoads
 import io.github.secnewt.maps.nav.NavGuidance
+import io.github.secnewt.maps.nav.RouteOptions
 import io.github.secnewt.maps.nav.Navigator
 import io.github.secnewt.maps.nav.RouteProblem
 import com.stadiamaps.ferrostar.core.location.toAndroidLocation
 import uniffi.ferrostar.Route
 import io.github.secnewt.maps.ui.HomeScreen
+import io.github.secnewt.maps.ui.AvoidActions
 import io.github.secnewt.maps.ui.MapCard
+import io.github.secnewt.maps.ui.RoadChoice
 import io.github.secnewt.maps.ui.MapScreen
 import io.github.secnewt.maps.ui.linkHostsAllOn
 import io.github.secnewt.ui.NewtTheme
@@ -65,6 +69,7 @@ class MainActivity : ComponentActivity() {
     private val savedVersion = mutableStateOf(0)
     private val navigator by lazy { Navigator(this) }
     private val navPrefs by lazy { getSharedPreferences("navigation", MODE_PRIVATE) }
+    private val avoided by lazy { AvoidedRoads(File(filesDir, "avoided-roads.json")) }
     private val practice = mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -150,9 +155,15 @@ class MainActivity : ComponentActivity() {
         var destination by remember { mutableStateOf<MapCard.Place?>(null) }
         var route by remember { mutableStateOf<Route?>(null) }
         var avoidTolls by remember { mutableStateOf(navPrefs.getBoolean("avoid_tolls", true)) }
+        var avoidHighways by remember { mutableStateOf(navPrefs.getBoolean("avoid_highways", false)) }
+        // The marked roads, and a count bumped on every change so the route card redraws.
+        var roadsVersion by remember { mutableStateOf(0) }
+        // Read fresh each time: a lambda made earlier would otherwise keep the old choices.
+        val currentOptions = { roadsVersion.let { RouteOptions(avoidTolls, avoidHighways, avoided.activeSpots()) } }
+        val options = currentOptions()
         var driving by remember { mutableStateOf(false) }
         var muted by remember { mutableStateOf(false) }
-        val navState by remember(avoidTolls) { navigator.state(avoidTolls) }.collectAsState()
+        val navState by remember(options) { navigator.state(options) }.collectAsState()
         val guidance = if (driving) NavGuidance.from(navState, muted, practice.value) else null
         val findRoute = { place: MapCard.Place ->
             withLocation {
@@ -160,7 +171,7 @@ class MainActivity : ComponentActivity() {
                 card = MapCard.Note("Finding a route…")
                 scope.launch {
                     try {
-                        val found = navigator.route(place.lat, place.lng, avoidTolls)
+                        val found = navigator.route(place.lat, place.lng, currentOptions())
                         route = found
                         card = null
                         controller.showRoute(found.geometry.map { it.lat to it.lng })
@@ -169,6 +180,13 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
+        }
+        // An avoid choice changed: find the route again with it.
+        val reroute = {
+            route = null
+            controller.clearRoute()
+            destination?.let(findRoute)
+            Unit
         }
         val stopDriving = {
             navigator.stop()
@@ -201,7 +219,17 @@ class MainActivity : ComponentActivity() {
         if (route != null && !driving) BackHandler { route = null; controller.clearRoute() }
         if (card != null) BackHandler { closeCard() }
         MapScreen(
-            map = { NewtMap(controller, dark, startPosition(), onTap = { tapped ->
+            map = { NewtMap(controller, dark, startPosition(), onLongPress = { lat, lng ->
+                    if (driving) return@NewtMap
+                    card = MapCard.Note("Looking up the road there…")
+                    scope.launch {
+                        card = try {
+                            navigator.roadAt(lat, lng)?.let { MapCard.AvoidRoad(it) } ?: MapCard.Note("No named road there. Press and hold right on the road.")
+                        } catch (problem: RouteProblem) {
+                            MapCard.Note(problem.message.orEmpty())
+                        }
+                    }
+                }, onTap = { tapped ->
                     card = if (tapped is MapCard.Place) {
                         // A gold dot: fill in the address I saved with it.
                         val mine = if (saved.isHome(tapped.lat, tapped.lng) && tapped.name == "Home") saved.home else saved.at(tapped.lat, tapped.lng)
@@ -209,7 +237,7 @@ class MainActivity : ComponentActivity() {
                     } else {
                         tapped
                     }
-                }, Modifier.fillMaxSize()) },
+                }, modifier = Modifier.fillMaxSize()) },
             card = card,
             searching = searching,
             onSearch = { text ->
@@ -291,22 +319,38 @@ class MainActivity : ComponentActivity() {
                 startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(uri)).setClass(this, PickActivity::class.java))
             },
             onDirections = findRoute,
-            preview = route?.takeIf { !driving }?.let { NavGuidance.preview(it, destination?.name.orEmpty(), avoidTolls, practice.value) },
+            preview = route?.takeIf { !driving }?.let {
+                NavGuidance.preview(it, destination?.name.orEmpty(), avoidTolls, practice.value)
+                    .copy(avoidHighways = avoidHighways, roads = roadsVersion.let { avoided.roads.map { r -> RoadChoice(r.name, r.on) } })
+            },
             onStart = {
                 route?.let { found ->
                     navigator.setMuted(muted)
-                    navigator.start(found, avoidTolls, practice.value)
+                    navigator.start(found, currentOptions(), practice.value)
                     controller.clearPlace()
                     controller.startDriving(this, puck)
                     driving = true
                 }
             },
-            onToggleTolls = {
-                avoidTolls = !avoidTolls
-                navPrefs.edit().putBoolean("avoid_tolls", avoidTolls).apply()
-                route = null
-                controller.clearRoute()
-                destination?.let(findRoute)
+            avoid = AvoidActions(
+                onToggleTolls = {
+                    avoidTolls = !avoidTolls
+                    navPrefs.edit().putBoolean("avoid_tolls", avoidTolls).apply()
+                    reroute()
+                },
+                onToggleHighways = {
+                    avoidHighways = !avoidHighways
+                    navPrefs.edit().putBoolean("avoid_highways", avoidHighways).apply()
+                    reroute()
+                },
+                onSetRoad = { name, on -> avoided.setOn(name, on); roadsVersion++; reroute() },
+                onRemoveRoad = { name -> avoided.remove(name); roadsVersion++; reroute() },
+            ),
+            onAvoidRoad = { ask ->
+                avoided.add(ask.road)
+                roadsVersion++
+                card = MapCard.Note("Avoiding ${ask.road.name} at that spot. Turn it off for a trip under Avoid roads on the route card.")
+                destination?.takeIf { route != null }?.let { reroute() }
             },
             onClosePreview = { route = null; controller.clearRoute() },
             guidance = guidance,

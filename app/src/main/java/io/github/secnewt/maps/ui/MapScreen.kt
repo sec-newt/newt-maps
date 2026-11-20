@@ -80,8 +80,15 @@ sealed interface MapCard {
     /** Everything a search found, nearest first-ish; tap one to see it. */
     data class Results(val query: String, val hits: List<SearchHit>, val shortenedTo: String? = null, val title: String? = null) : MapCard
 
-    /** Something went wrong or needs saying ("Couldn't find that"). */
-    data class Note(val text: String) : MapCard
+    /**
+     * Something went wrong or needs saying ("Couldn't find that"). [roadsButton]: the
+     * problem is the marked roads, so offer the list to turn some off. [fastestButton]: the
+     * problem is Shortest's hard no tolls / no highways, so offer the fastest route.
+     */
+    data class Note(val text: String, val roadsButton: Boolean = false, val fastestButton: Boolean = false) : MapCard
+
+    /** A road I pressed and held: avoid it there? */
+    data class AvoidRoad(val road: io.github.secnewt.maps.nav.AvoidedRoad) : MapCard
 }
 
 /**
@@ -120,7 +127,9 @@ fun MapScreen(
     /** A found route waiting for Start; replaces the card. */
     preview: RoutePreview? = null,
     onStart: () -> Unit = {},
-    onToggleTolls: () -> Unit = {},
+    avoid: AvoidActions = AvoidActions(),
+    /** Yes to the AvoidRoad card. */
+    onAvoidRoad: (MapCard.AvoidRoad) -> Unit = {},
     onClosePreview: () -> Unit = {},
     /** While driving: the banner and trip bar replace everything else. */
     guidance: Guidance? = null,
@@ -129,6 +138,7 @@ fun MapScreen(
 ) {
     Box(Modifier.fillMaxSize()) {
         map()
+        if (avoid.listOpen && guidance == null) AvoidRoadsDialog(avoid)
         if (guidance != null) {
             TurnBanner(guidance, Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(12.dp))
             TripBar(guidance, onMute, onStop, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(12.dp))
@@ -152,11 +162,13 @@ fun MapScreen(
                 MapButton(NewtIcons.ZoomOut, "Zoom out", onZoomOut)
                 MapButton(NewtIcons.MyLocation, "Where am I", onMyLocation)
                 MapButton(Icons.Filled.Home, "Go home", onHome)
-                if (preview != null) {
-                    PreviewCard(preview, onStart, onToggleTolls, onClosePreview)
+                // A card (a street tapped, a road to avoid) shows over a found route;
+                // closing it brings the route back.
+                if (card == null && preview != null) {
+                    PreviewCard(preview, onStart, avoid, onClosePreview, Modifier.weight(1f, fill = false))
                 } else if (card != null) {
                     CardView(
-                        card, onCloseCard, onShare, onCopy, onOpenElsewhere, onDirections, onPick,
+                        card, onCloseCard, onShare, onCopy, onOpenElsewhere, onDirections, onPick, onAvoidRoad, { avoid.onList(true) }, avoid.onToggleShortest,
                         SavedActions(placeSaved, placeIsHome, onSave, onRename, onRemove, onSetHome),
                         Modifier.weight(1f, fill = false),
                     )
@@ -225,6 +237,9 @@ private fun CardView(
     onOpenElsewhere: (MapCard.Place) -> Unit,
     onDirections: (MapCard.Place) -> Unit,
     onPick: (SearchHit) -> Unit,
+    onAvoidRoad: (MapCard.AvoidRoad) -> Unit,
+    onRoadsList: () -> Unit,
+    onFastest: () -> Unit,
     saved: SavedActions,
     modifier: Modifier,
 ) {
@@ -270,6 +285,10 @@ private fun CardView(
                             )
                         }
                         is MapCard.Note -> Text(card.text, style = MaterialTheme.typography.titleLarge)
+                        is MapCard.AvoidRoad -> {
+                            Text("Avoid this road here?", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(card.road.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, modifier = Modifier.semantics { heading() })
+                        }
                         is MapCard.Results -> Text(card.title ?: resultsTitle(card), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.semantics { heading() })
                     }
                 }
@@ -284,6 +303,19 @@ private fun CardView(
                 ) {
                     card.hits.forEach { hit -> ResultRow(hit, onPick) }
                 }
+            }
+            if (card is MapCard.Note && card.fastestButton) {
+                // Shortest is on (that's when tolls and highways are forbidden outright): the
+                // fastest route only prefers to avoid them, so it finds a way.
+                NewtPrimaryButton("Use the fastest route", onClick = onFastest, large = true, modifier = Modifier.fillMaxWidth())
+            }
+            if (card is MapCard.Note && card.roadsButton) {
+                NewtPrimaryButton("Roads to avoid", onClick = onRoadsList, large = true, modifier = Modifier.fillMaxWidth())
+            }
+            if (card is MapCard.AvoidRoad) {
+                // The button first: with big text the explanation is what scrolls out of view.
+                NewtPrimaryButton("Avoid", onClick = { onAvoidRoad(card) }, large = true, modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Avoid ${card.road.name} here" })
+                Text("Routes go around it at this spot. Mark more spots for a longer stretch.", style = MaterialTheme.typography.titleMedium)
             }
             if (card is MapCard.Place) {
                 // Directions is the one big green button; the rest say what they do.

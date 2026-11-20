@@ -3,6 +3,17 @@ package io.github.secnewt.maps.ui
 import io.github.secnewt.ui.NewtButton
 import io.github.secnewt.ui.NewtPrimaryButton
 import io.github.secnewt.ui.NewtTone
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.AlertDialog
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -45,7 +56,7 @@ import io.github.secnewt.maps.nav.Turn
 import io.github.secnewt.ui.NewtFonts
 import io.github.secnewt.ui.neonOutline
 
-/** A found route, before starting: how long, how far, and the toll choice. */
+/** A found route, before starting: how long, how far, and what it avoids. */
 data class RoutePreview(
     val placeName: String,
     val duration: String,
@@ -53,6 +64,28 @@ data class RoutePreview(
     val arrival: String,
     val avoidTolls: Boolean,
     val practice: Boolean,
+    val avoidHighways: Boolean = false,
+    /** The fewest miles, not the least time (often slower, on smaller roads). */
+    val shortest: Boolean = false,
+)
+
+/** A marked road on the route card's list: its name, and whether this trip avoids it. */
+data class RoadChoice(val name: String, val on: Boolean)
+
+/**
+ * The roads I've marked and what the avoid buttons do. Each change finds the route again.
+ * Whether the list is open lives outside the route card, so it stays open while a new
+ * route is found (the card is gone for that moment) and can open with no route at all.
+ */
+class AvoidActions(
+    val roads: List<RoadChoice> = emptyList(),
+    val listOpen: Boolean = false,
+    val onList: (Boolean) -> Unit = {},
+    val onToggleTolls: () -> Unit = {},
+    val onToggleHighways: () -> Unit = {},
+    val onToggleShortest: () -> Unit = {},
+    val onSetRoad: (String, Boolean) -> Unit = { _, _ -> },
+    val onRemoveRoad: (String) -> Unit = {},
 )
 
 /** What to show while driving. */
@@ -98,16 +131,18 @@ fun Turn.icon(): ImageVector = when (this) {
 private val Go = Color(0xFF9ECE6A)
 private val OnGo = Color(0xFF0B0C10)
 
-/** The card for a found route: time, distance, arrival, tolls, and a big Start. */
+/** The card for a found route: time, distance, arrival, route choices, and a big Start. */
 @Composable
-internal fun PreviewCard(preview: RoutePreview, onStart: () -> Unit, onToggleTolls: () -> Unit, onClose: () -> Unit, modifier: Modifier = Modifier) {
+internal fun PreviewCard(preview: RoutePreview, onStart: () -> Unit, avoid: AvoidActions, onClose: () -> Unit, modifier: Modifier = Modifier) {
     Surface(
         shape = RoundedCornerShape(20.dp),
         color = MaterialTheme.colorScheme.surface,
         border = neonOutline(2.dp),
         modifier = modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite },
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        // Start comes before the avoid choices and the card scrolls, so with big text Start
+        // is never the part pushed off the screen.
+        Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.Top) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(preview.placeName, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -123,8 +158,6 @@ internal fun PreviewCard(preview: RoutePreview, onStart: () -> Unit, onToggleTol
                 NavIconButton(Icons.Filled.Close, "Close", onClose)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                // Words here: no toll icon is clear enough on its own.
-                TollToggle(preview.avoidTolls, onToggleTolls)
                 // The one action that matters here: big, green, with its word.
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
@@ -141,13 +174,74 @@ internal fun PreviewCard(preview: RoutePreview, onStart: () -> Unit, onToggleTol
                     Text("Start", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = OnGo)
                 }
             }
+            // Words here: no toll or highway icon is clear enough on its own. They wrap onto
+            // more rows with big text.
+            @OptIn(ExperimentalLayoutApi::class)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                AvoidToggle("No tolls", "tolls", preview.avoidTolls, avoid.onToggleTolls)
+                AvoidToggle("No highways", "highways", preview.avoidHighways, avoid.onToggleHighways)
+                AvoidToggle("Shortest", "shortest", preview.shortest, avoid.onToggleShortest, offLabel = "Use the shortest route", onLabel = "Use the fastest route")
+                val avoiding = avoid.roads.count { it.on }
+                AvoidToggle(
+                    if (avoiding == 0) "Avoid roads" else "Avoiding $avoiding",
+                    null,
+                    avoiding > 0,
+                    { avoid.onList(true) },
+                )
+            }
         }
     }
 }
 
-/** "No tolls", filled with the gradient when on. Tapping it finds the route again. */
+/** The roads I've marked: a switch each for this trip, and a way to forget one. */
 @Composable
-private fun TollToggle(on: Boolean, onClick: () -> Unit) {
+internal fun AvoidRoadsDialog(avoid: AvoidActions, onClose: () -> Unit = { avoid.onList(false) }) {
+    val roads = avoid.roads
+    var forgetting by remember { mutableStateOf<String?>(null) }
+    AlertDialog(
+        onDismissRequest = onClose,
+        title = { Text("Roads to avoid", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.semantics { heading() }) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (roads.isEmpty()) {
+                    Text("None yet. Press and hold a road on the map to avoid it there.", style = MaterialTheme.typography.titleMedium)
+                } else {
+                    Text("Turn a road off to drive on it this trip. Press and hold a road on the map to add one.", style = MaterialTheme.typography.bodyLarge)
+                }
+                roads.forEach { road ->
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Box(Modifier.weight(1f)) { AvoidToggle(road.name, road.name, road.on, { avoid.onSetRoad(road.name, !road.on) }) }
+                        NavIconButton(Icons.Filled.Delete, "Forget ${road.name}", { forgetting = road.name }, danger = true)
+                    }
+                }
+            }
+        },
+        confirmButton = { NewtPrimaryButton("Done", onClick = onClose) },
+    )
+    forgetting?.let { name ->
+        AlertDialog(
+            onDismissRequest = { forgetting = null },
+            title = { Text("Forget $name?", style = MaterialTheme.typography.headlineSmall) },
+            text = { Text("Routes can use it again. You can mark it again any time.", style = MaterialTheme.typography.titleMedium) },
+            confirmButton = { NewtPrimaryButton("Forget", onClick = { avoid.onRemoveRoad(name); forgetting = null }, tone = NewtTone.Danger) },
+            dismissButton = { NewtButton("Keep", onClick = { forgetting = null }) },
+        )
+    }
+}
+
+/**
+ * A choice on the route card, filled with the gradient when on. Tapping a switch ([what]
+ * set: "tolls") finds the route again; without [what] it's a button that opens something.
+ */
+@Composable
+private fun AvoidToggle(
+    label: String,
+    what: String?,
+    on: Boolean,
+    onClick: () -> Unit,
+    offLabel: String = "Avoid $what",
+    onLabel: String = "Allow $what",
+) {
     val shape = RoundedCornerShape(16.dp)
     val fill = Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.secondary))
     Box(
@@ -157,16 +251,22 @@ private fun TollToggle(on: Boolean, onClick: () -> Unit) {
             .clip(shape)
             .then(if (on) Modifier.background(fill) else Modifier.background(MaterialTheme.colorScheme.surface))
             .border(neonOutline(2.dp), shape)
-            .clickable(onClickLabel = if (on) "Allow tolls" else "Avoid tolls", role = Role.Switch, onClick = onClick)
-            .semantics { stateDescription = if (on) "On" else "Off" }
+            .then(
+                if (what != null) {
+                    Modifier.clickable(onClickLabel = if (on) onLabel else offLabel, role = Role.Switch, onClick = onClick)
+                        .semantics { stateDescription = if (on) "On" else "Off" }
+                } else {
+                    Modifier.clickable(onClickLabel = "Choose roads to avoid", role = Role.Button, onClick = onClick)
+                },
+            )
             .padding(horizontal = 14.dp),
     ) {
-        Text(
-            "No tolls",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = if (on) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
-        )
+        val color = if (on) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary
+        // A check mark when a switch is on, so its state doesn't rest on the fill color alone.
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (on && what != null) Icon(Icons.Filled.Check, contentDescription = null, tint = color, modifier = Modifier.size(24.dp))
+            Text(label, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = color)
+        }
     }
 }
 

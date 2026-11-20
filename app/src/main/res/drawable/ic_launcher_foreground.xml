@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Newt app icon: the Tokyo Night blue-to-purple newt with a plain purple badge.
-     Give each app its own badge color and a symbol inside (Phone: green handset, Home: cyan ">_").
+<!-- Newt Maps icon: the Tokyo Night blue-to-purple newt with a red badge holding a map pin.
+     Each app has its own badge color and symbol (Phone: green handset, Home: cyan house,
+     Weather: yellow sun, Messages: orange speech bubble).
      Drawn on a 100x100 grid, scaled into the adaptive icon's safe zone. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt"
@@ -63,6 +64,7 @@
         </path>
         <path android:fillColor="#FF0B0C14" android:pathData="M39.3,17.5 a2.2,2.2 0 1,0 4.4,0 a2.2,2.2 0 1,0 -4.4,0 Z M48.3,17.5 a2.2,2.2 0 1,0 4.4,0 a2.2,2.2 0 1,0 -4.4,0 Z" />
         <path android:fillColor="#FF0B0C14" android:pathData="M56.25,75 a18.75,18.75 0 1,0 37.5,0 a18.75,18.75 0 1,0 -37.5,0 Z" />
-        <path android:fillColor="#FFBB9AF7" android:pathData="M58,75 a17,17 0 1,0 34,0 a17,17 0 1,0 -34,0 Z" />
+        <path android:fillColor="#FFF7768E" android:pathData="M58,75 a17,17 0 1,0 34,0 a17,17 0 1,0 -34,0 Z" />
+        <path android:fillColor="#FF0B0C10" android:fillType="evenOdd" android:pathData="M75,86 C71.5,81.5 67.5,77 67.5,72 a7.5,7.5 0 1,1 15,0 C82.5,77 78.5,81.5 75,86 Z M72,72 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0 Z" />
     </group>
 </vector>

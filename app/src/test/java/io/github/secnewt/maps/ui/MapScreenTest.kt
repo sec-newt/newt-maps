@@ -23,7 +23,12 @@ import com.github.takahirom.roborazzi.RobolectricDeviceQualifiers
 import io.github.secnewt.maps.search.SearchHit
 import io.github.secnewt.test.newtScreenshot
 import io.github.secnewt.ui.NewtTheme
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -60,11 +65,14 @@ class MapScreenTest {
         onRemove: (MapCard.Place) -> Unit = {},
         onSetHome: (MapCard.Place) -> Unit = {},
         onHome: () -> Unit = {},
+        avoid: AvoidActions = AvoidActions(),
+        onAvoidRoad: (MapCard.AvoidRoad) -> Unit = {},
     ) = MapScreen(
         map = { Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) },
         card = card, searching = false, onSearch = {}, onZoomIn = onZoomIn, onZoomOut = {}, onMyLocation = {},
         onSettings = {}, onCloseCard = onClose, preview = preview, guidance = guidance, onStart = onStart, onDirections = onDirections, onPick = onPick,
         placeSaved = placeSaved, placeIsHome = placeIsHome, onSave = onSave, onRemove = onRemove, onSetHome = onSetHome, onHome = onHome,
+        avoid = avoid, onAvoidRoad = onAvoidRoad,
     )
 
     private val preview = RoutePreview("The Catch, 5949 Broadway Blvd", "12 min", "4.3 mi", "3:45 PM", avoidTolls = true, practice = false)
@@ -196,6 +204,71 @@ class MapScreenTest {
     @Test fun drivingDark() = composeRule.newtScreenshot("driving-dark", dark = true) { Screen(null, guidance = guidance) }
     @Test fun drivingLight() = composeRule.newtScreenshot("driving-light", dark = false) { Screen(null, guidance = guidance.copy(muted = true, then = null)) }
     @Test fun drivingLargeText() = composeRule.newtScreenshot("driving-200pct", dark = true, fontScale = 2f) { Screen(null, guidance = guidance.copy(rerouting = true)) }
+
+    private val roads = listOf(RoadChoice("I 635 · Lyndon B. Johnson Freeway", on = true), RoadChoice("I 30", on = false))
+    private val avoidCard = MapCard.AvoidRoad(
+        io.github.secnewt.maps.nav.AvoidedRoad("I 635 · Lyndon B. Johnson Freeway", listOf(io.github.secnewt.maps.nav.Spot(32.85, -96.64))),
+    )
+
+    @Test fun previewAvoidingLargeText() = composeRule.newtScreenshot("route-preview-avoiding-200pct", dark = true, fontScale = 2f) {
+        Screen(null, preview = preview.copy(avoidHighways = true), avoid = AvoidActions(roads = roads))
+    }
+    @Test fun avoidRoadCardLargeText() = composeRule.newtScreenshot("avoid-road-200pct", dark = true, fontScale = 2f) { Screen(avoidCard) }
+
+    @Test
+    fun highwaysSwitchAsksForANewRoute() {
+        var toggled = false
+        composeRule.setContent { NewtTheme(darkTheme = true) { Screen(null, preview = preview, avoid = AvoidActions(onToggleHighways = { toggled = true })) } }
+        composeRule.onNodeWithText("No highways").performClick()
+        assertTrue(toggled)
+    }
+
+    @Test
+    fun shortestSwitchAsksForANewRoute() {
+        var toggled = false
+        composeRule.setContent { NewtTheme(darkTheme = true) { Screen(null, preview = preview, avoid = AvoidActions(onToggleShortest = { toggled = true })) } }
+        composeRule.onNodeWithText("Shortest").performClick()
+        assertTrue(toggled)
+    }
+
+    @Test
+    fun avoidRoadsListSwitchesARoadForThisTrip() {
+        var set: Pair<String, Boolean>? = null
+        composeRule.setContent {
+            // The list stays open across changes: its state lives outside the route card.
+            var open by remember { mutableStateOf(false) }
+            val avoid = AvoidActions(roads = roads, listOpen = open, onList = { open = it }, onSetRoad = { name, on -> set = name to on })
+            NewtTheme(darkTheme = true) { Screen(null, preview = preview, avoid = avoid) }
+        }
+        composeRule.onNodeWithText("Avoiding 1").performClick()
+        composeRule.onNodeWithText("I 30").performClick()
+        assertEquals("I 30" to true, set)
+        composeRule.onNodeWithText("Roads to avoid").assertExists()
+    }
+
+    @Test
+    fun noRouteBecauseOfRoadsOffersTheList() {
+        var opened = false
+        composeRule.setContent {
+            NewtTheme(darkTheme = true) { Screen(MapCard.Note("No route found that avoids your marked roads.", roadsButton = true), avoid = AvoidActions(onList = { opened = it })) }
+        }
+        composeRule.onNodeWithText("Roads to avoid").performClick()
+        assertTrue(opened)
+    }
+
+    @Test
+    fun aCardShowsOverAFoundRoute() {
+        composeRule.setContent { NewtTheme(darkTheme = true) { Screen(avoidCard, preview = preview) } }
+        composeRule.onNodeWithText("Avoid").assertExists()
+    }
+
+    @Test
+    fun avoidCardSaysYes() {
+        var avoided: MapCard.AvoidRoad? = null
+        composeRule.setContent { NewtTheme(darkTheme = true) { Screen(avoidCard, onAvoidRoad = { avoided = it }) } }
+        composeRule.onNodeWithText("Avoid").performClick()
+        assertEquals(avoidCard, avoided)
+    }
 
     @Test
     fun directionsAsksForARoute() {

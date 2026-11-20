@@ -62,13 +62,24 @@ object NavText {
     private fun ManeuverModifier?.isRight() = this == ManeuverModifier.RIGHT || this == ManeuverModifier.SLIGHT_RIGHT || this == ManeuverModifier.SHARP_RIGHT
 
     /**
-     * Route options sent to Valhalla: miles, and tolls avoided (strongly, not forbidden, so a
-     * place only reachable by toll road still gets a route) when [avoidTolls].
+     * Route options sent to Valhalla: miles; tolls and highways avoided strongly but not
+     * forbidden (a place only reachable by one still gets a route); and the spots on roads I
+     * marked to avoid, which are forbidden.
      */
-    fun valhallaOptions(avoidTolls: Boolean): Map<String, Any> = mapOf(
-        "units" to "miles",
-        "costing_options" to mapOf("auto" to mapOf("use_tolls" to if (avoidTolls) 0.0 else 0.5)),
-    )
+    fun valhallaOptions(options: RouteOptions): Map<String, Any> = buildMap {
+        put("units", "miles")
+        put("costing_options", mapOf("auto" to buildMap<String, Any> {
+            put("use_tolls", if (options.avoidTolls) 0.0 else 0.5)
+            put("use_highways", if (options.avoidHighways) 0.0 else 1.0)
+            // Valhalla's own switch: distance alone, ignoring speed limits and traffic lights.
+            put("shortest", options.shortest)
+            // Shortest turns off the use_* preferences above, so keep tolls and highways out
+            // outright instead.
+            if (options.shortest && options.avoidTolls) put("exclude_tolls", true)
+            if (options.shortest && options.avoidHighways) put("exclude_highways", true)
+        }))
+        if (options.avoid.isNotEmpty()) put("exclude_locations", options.avoid.map { mapOf("lat" to it.lat, "lon" to it.lng) })
+    }
 }
 
 /** The arrow for the next turn. */

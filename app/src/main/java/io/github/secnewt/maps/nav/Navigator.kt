@@ -31,10 +31,11 @@ import uniffi.ferrostar.stepAdvanceDistanceEntryAndExit
 import uniffi.ferrostar.stepAdvanceDistanceToEndOfStep
 
 /**
- * Why a route couldn't be found, in words for the card. [roads]: the marked roads are why,
- * so the card offers the list to turn some off.
+ * Why a route couldn't be found, in words for the card. [roads]: the marked roads may be why,
+ * so the card offers the list to turn some off. [fastest]: Shortest's hard "no tolls / no
+ * highways" may be why, so the card offers the fastest route (which only prefers to avoid them).
  */
-class RouteProblem(message: String, val roads: Boolean = false) : Exception(message)
+class RouteProblem(message: String, val roads: Boolean = false, val fastest: Boolean = false) : Exception(message)
 
 /**
  * Turn-by-turn driving, on Ferrostar. Routes come from my own Valhalla server ([RouteServer]),
@@ -96,6 +97,9 @@ class Navigator(context: Context) {
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 core.getRoutes(here.toUserLocation(), listOf(Waypoint(coordinate = GeographicCoordinate(lat, lng), kind = WaypointKind.BREAK)))
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            // A newer request replaced this one: not a route problem, so nothing to show.
+            throw e
         } catch (e: java.io.IOException) {
             android.util.Log.w("Navigator", "route request failed", e)
             throw RouteProblem("Couldn't reach the route server on persephone. Is it on, and is Tailscale connected?")
@@ -103,10 +107,17 @@ class Navigator(context: Context) {
             // The server answered, but the answer couldn't be used: say so, with the reason,
             // instead of blaming the network.
             android.util.Log.w("Navigator", "route answer unusable", e)
-            // Valhalla refuses outright (an error status) when the marked spots leave no way
-            // through. Other failures keep their own reason.
-            if (options.avoid.isNotEmpty() && e is com.stadiamaps.ferrostar.core.InvalidStatusCodeException) {
-                throw RouteProblem("No route found that avoids your marked roads. Turn some off, then try again.", roads = true)
+            // Valhalla refuses outright (an error status) when what's forbidden leaves no way
+            // through: the marked spots, or Shortest's hard no tolls / no highways. Other
+            // failures keep their own reason.
+            val hardExcludes = options.shortest && (options.avoidTolls || options.avoidHighways)
+            if ((options.avoid.isNotEmpty() || hardExcludes) && e is com.stadiamaps.ferrostar.core.InvalidStatusCodeException) {
+                val what = listOfNotNull(
+                    "your marked roads".takeIf { options.avoid.isNotEmpty() },
+                    "tolls".takeIf { hardExcludes && options.avoidTolls },
+                    "highways".takeIf { hardExcludes && options.avoidHighways },
+                ).joinToString(" and ")
+                throw RouteProblem("No route found that avoids $what. Turn some off, then try again.", roads = options.avoid.isNotEmpty(), fastest = hardExcludes)
             }
             throw RouteProblem("The route server answered, but its route couldn't be read. (${e.javaClass.simpleName}: ${e.message?.take(160)})")
         }

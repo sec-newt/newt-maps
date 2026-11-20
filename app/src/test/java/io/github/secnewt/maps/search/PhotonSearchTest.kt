@@ -79,6 +79,14 @@ class PhotonSearchTest {
         assertEquals(60.0 / 69.0, north - south, 0.01)
     }
 
+    @Test fun nearbyBoxStaysInsideTheWorld() {
+        // Near the date line the box would reach past 180, which Photon refuses.
+        val t = FakeTransport { answer(feature("Example Cafe", 51.95, 179.9)) }
+        PhotonSearch(t).search("cafe", 51.95 to 179.8)
+        val (west, _, east, _) = t.asked.first().substringAfter("bbox=").substringBefore('&').split(',').map(String::toDouble)
+        assertTrue(west >= -180.0 && east <= 180.0 && west < 179.8)
+    }
+
     @Test fun distanceInMiles() {
         val found = PhotonSearch(FakeTransport { answer(casaLinda) }).search("El Fenix", garland) as SearchOutcome.Results
         // Garland to Casa Linda: 5.3 mi south and 3.5 mi west, so 6.4 mi in a straight line.

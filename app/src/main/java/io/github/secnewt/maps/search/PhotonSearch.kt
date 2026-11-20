@@ -142,7 +142,12 @@ class PhotonSearch(
         private fun box(lat: Double, lng: Double): String {
             val dLat = LOCAL_MILES / 69.0
             val dLng = LOCAL_MILES / (69.0 * cos(Math.toRadians(lat)))
-            return "%.4f,%.4f,%.4f,%.4f".format(java.util.Locale.US, lng - dLng, lat - dLat, lng + dLng, lat + dLat)
+            // Kept inside the world's edges: Photon refuses a box past ±180 / ±90.
+            return "%.4f,%.4f,%.4f,%.4f".format(
+                java.util.Locale.US,
+                (lng - dLng).coerceAtLeast(-180.0), (lat - dLat).coerceAtLeast(-90.0),
+                (lng + dLng).coerceAtMost(180.0), (lat + dLat).coerceAtMost(90.0),
+            )
         }
 
         /** Straight-line miles between two points. */

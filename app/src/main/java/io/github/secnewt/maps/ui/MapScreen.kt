@@ -82,9 +82,10 @@ sealed interface MapCard {
 
     /**
      * Something went wrong or needs saying ("Couldn't find that"). [roadsButton]: the
-     * problem is the marked roads, so offer the list to turn some off.
+     * problem is the marked roads, so offer the list to turn some off. [fastestButton]: the
+     * problem is Shortest's hard no tolls / no highways, so offer the fastest route.
      */
-    data class Note(val text: String, val roadsButton: Boolean = false) : MapCard
+    data class Note(val text: String, val roadsButton: Boolean = false, val fastestButton: Boolean = false) : MapCard
 
     /** A road I pressed and held: avoid it there? */
     data class AvoidRoad(val road: io.github.secnewt.maps.nav.AvoidedRoad) : MapCard
@@ -167,7 +168,7 @@ fun MapScreen(
                     PreviewCard(preview, onStart, avoid, onClosePreview, Modifier.weight(1f, fill = false))
                 } else if (card != null) {
                     CardView(
-                        card, onCloseCard, onShare, onCopy, onOpenElsewhere, onDirections, onPick, onAvoidRoad, { avoid.onList(true) },
+                        card, onCloseCard, onShare, onCopy, onOpenElsewhere, onDirections, onPick, onAvoidRoad, { avoid.onList(true) }, avoid.onToggleShortest,
                         SavedActions(placeSaved, placeIsHome, onSave, onRename, onRemove, onSetHome),
                         Modifier.weight(1f, fill = false),
                     )
@@ -238,6 +239,7 @@ private fun CardView(
     onPick: (SearchHit) -> Unit,
     onAvoidRoad: (MapCard.AvoidRoad) -> Unit,
     onRoadsList: () -> Unit,
+    onFastest: () -> Unit,
     saved: SavedActions,
     modifier: Modifier,
 ) {
@@ -301,6 +303,11 @@ private fun CardView(
                 ) {
                     card.hits.forEach { hit -> ResultRow(hit, onPick) }
                 }
+            }
+            if (card is MapCard.Note && card.fastestButton) {
+                // Shortest is on (that's when tolls and highways are forbidden outright): the
+                // fastest route only prefers to avoid them, so it finds a way.
+                NewtPrimaryButton("Use the fastest route", onClick = onFastest, large = true, modifier = Modifier.fillMaxWidth())
             }
             if (card is MapCard.Note && card.roadsButton) {
                 NewtPrimaryButton("Roads to avoid", onClick = onRoadsList, large = true, modifier = Modifier.fillMaxWidth())

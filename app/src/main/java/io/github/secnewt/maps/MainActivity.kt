@@ -183,7 +183,7 @@ class MainActivity : ComponentActivity() {
                         card = null
                         controller.showRoute(found.geometry.map { it.lat to it.lng })
                     } catch (problem: RouteProblem) {
-                        card = MapCard.Note(problem.message.orEmpty(), roadsButton = problem.roads)
+                        card = MapCard.Note(problem.message.orEmpty(), roadsButton = problem.roads, fastestButton = problem.fastest)
                     }
                 }
             }
@@ -229,13 +229,17 @@ class MainActivity : ComponentActivity() {
         MapScreen(
             map = { NewtMap(controller, dark, startPosition(), onLongPress = { lat, lng ->
                     if (driving) return@NewtMap
-                    card = MapCard.Note("Looking up the road there…")
+                    val looking = MapCard.Note("Looking up the road there…")
+                    card = looking
                     scope.launch {
-                        card = try {
+                        val answer = try {
                             navigator.roadAt(lat, lng)?.let { MapCard.AvoidRoad(it) } ?: MapCard.Note("No named road there. Press and hold right on the road.")
                         } catch (problem: RouteProblem) {
                             MapCard.Note(problem.message.orEmpty())
                         }
+                        // Only if this lookup's card is still up: not closed, not replaced by
+                        // another press or a tap on the map.
+                        if (card === looking) card = answer
                     }
                 }, onTap = { tapped ->
                     card = if (tapped is MapCard.Place) {
@@ -368,8 +372,8 @@ class MainActivity : ComponentActivity() {
                     card = tooMany
                 } else {
                     roadsVersion++
-                    if (route != null) {
-                        // A route is waiting: find it again around the new spot.
+                    if (route != null || routeJob?.isActive == true) {
+                        // A route is waiting or being found: find it again around the new spot.
                         reroute()
                     } else {
                         card = MapCard.Note("Avoiding ${ask.road.name} at that spot. Turn it off for a trip under Avoid roads on the route card.")

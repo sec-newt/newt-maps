@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
 import androidx.compose.runtime.getValue
@@ -260,12 +261,12 @@ private fun AvoidToggle(
             )
             .padding(horizontal = 14.dp),
     ) {
-        Text(
-            label,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = if (on) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
-        )
+        val color = if (on) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary
+        // A check mark when a switch is on, so its state doesn't rest on the fill color alone.
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (on && what != null) Icon(Icons.Filled.Check, contentDescription = null, tint = color, modifier = Modifier.size(24.dp))
+            Text(label, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = color)
+        }
     }
 }
 

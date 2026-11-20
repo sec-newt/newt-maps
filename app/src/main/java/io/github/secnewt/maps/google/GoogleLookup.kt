@@ -20,6 +20,10 @@ import kotlin.math.abs
  * rewrites its address to the …/@lat,lng form, then reads the coordinates from that address.
  * No cookies or site storage are kept. Only used when the user taps Ask Google, and only
  * for Google's own addresses ([isGoogleLink]).
+ *
+ * The page can't move off Google's map hosts ([allowsNavigation]), but what Google's own page
+ * loads inside itself (its scripts, pictures, and anything they fetch) isn't filtered: that's
+ * Google's page as a browser would run it, and it sees the link.
  */
 class GoogleLookup(private val context: Context) {
 
@@ -99,7 +103,7 @@ class GoogleLookup(private val context: Context) {
          * A web link on one of Google's map hosts, the same ones the short-link reader trusts
          * ([ShortLinkResolver.GOOGLE]). A look-alike such as "notgoogle.com" or
          * "google.com.example.net" is not, nor a Google host for other people's pages
-         * (sites.google.com), so their script never runs in the lookup.
+         * (sites.google.com), so the lookup never starts on their page.
          */
         fun isGoogleLink(link: String): Boolean {
             val uri = try { java.net.URI(link) } catch (_: java.net.URISyntaxException) { return false }

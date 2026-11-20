@@ -68,10 +68,16 @@ object NavText {
      */
     fun valhallaOptions(options: RouteOptions): Map<String, Any> = buildMap {
         put("units", "miles")
-        put("costing_options", mapOf("auto" to mapOf(
-            "use_tolls" to if (options.avoidTolls) 0.0 else 0.5,
-            "use_highways" to if (options.avoidHighways) 0.0 else 1.0,
-        )))
+        put("costing_options", mapOf("auto" to buildMap<String, Any> {
+            put("use_tolls", if (options.avoidTolls) 0.0 else 0.5)
+            put("use_highways", if (options.avoidHighways) 0.0 else 1.0)
+            // Valhalla's own switch: distance alone, ignoring speed limits and traffic lights.
+            put("shortest", options.shortest)
+            // Shortest turns off the use_* preferences above, so keep tolls and highways out
+            // outright instead.
+            if (options.shortest && options.avoidTolls) put("exclude_tolls", true)
+            if (options.shortest && options.avoidHighways) put("exclude_highways", true)
+        }))
         if (options.avoid.isNotEmpty()) put("exclude_locations", options.avoid.map { mapOf("lat" to it.lat, "lon" to it.lng) })
     }
 }

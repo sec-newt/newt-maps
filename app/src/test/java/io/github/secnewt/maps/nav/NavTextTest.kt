@@ -59,6 +59,24 @@ class NavTextTest {
     }
 
     @Test
+    fun `fastest unless the shortest route is asked for`() {
+        assertEquals(false, auto(NavText.valhallaOptions(RouteOptions(true)))["shortest"])
+        assertEquals(true, auto(NavText.valhallaOptions(RouteOptions(true, shortest = true)))["shortest"])
+    }
+
+    @Test
+    fun `the shortest route still stays off tolls and highways when asked`() {
+        val shortest = auto(NavText.valhallaOptions(RouteOptions(avoidTolls = true, avoidHighways = true, shortest = true)))
+        assertEquals(true, shortest["exclude_tolls"])
+        assertEquals(true, shortest["exclude_highways"])
+        val allowed = auto(NavText.valhallaOptions(RouteOptions(avoidTolls = false, shortest = true)))
+        assertEquals(null, allowed["exclude_tolls"])
+        assertEquals(null, allowed["exclude_highways"])
+        // The fastest route keeps the softer preference, as before.
+        assertEquals(null, auto(NavText.valhallaOptions(RouteOptions(avoidTolls = true, avoidHighways = true)))["exclude_tolls"])
+    }
+
+    @Test
     fun `marked spots go to Valhalla as places to exclude, and only when there are some`() {
         val options = NavText.valhallaOptions(RouteOptions(true, avoid = listOf(Spot(32.85, -96.64))))
         assertEquals(listOf(mapOf("lat" to 32.85, "lon" to -96.64)), options["exclude_locations"])

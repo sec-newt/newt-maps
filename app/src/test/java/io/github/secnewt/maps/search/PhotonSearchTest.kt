@@ -52,7 +52,31 @@ class PhotonSearchTest {
         val url = t.asked.single()
         assertTrue(url.startsWith("https://photon.komoot.io/api/?"))
         assertTrue("lat=32.91" in url && "lon=-96.64" in url && "limit=" in url)
+        assertTrue("bbox=" in url)
         assertEquals("El Fenix", query(url))
+    }
+
+    @Test fun closestFirst() {
+        val far = feature("Corner Cafe", 33.10, -96.80, city = "Plano")
+        val close = feature("Corner Cafe", 32.92, -96.64, city = "Garland")
+        val found = PhotonSearch(FakeTransport { answer(far, close) }).search("Corner Cafe", garland) as SearchOutcome.Results
+        assertEquals(listOf("Garland", "Plano"), found.hits.map { it.address })
+    }
+
+    @Test fun nothingNearbyThenLooksEverywhere() {
+        val newYork = feature("Coffee Shop", 40.75, -73.99, city = "New York")
+        val t = FakeTransport { url -> if ("bbox=" in url) answer() else answer(newYork) }
+        val found = PhotonSearch(t).search("Coffee Shop", garland) as SearchOutcome.Results
+        assertEquals(listOf("New York"), found.hits.map { it.address })
+        assertEquals(listOf(true, false), t.asked.map { "bbox=" in it })
+    }
+
+    @Test fun nearbyBoxSurroundsMe() {
+        val t = FakeTransport { answer(casaLinda) }
+        PhotonSearch(t).search("El Fenix", garland)
+        val (west, south, east, north) = t.asked.single().substringAfter("bbox=").substringBefore('&').split(',').map(String::toDouble)
+        assertTrue(west < -96.64 && east > -96.64 && south < 32.91 && north > 32.91)
+        assertEquals(60.0 / 69.0, north - south, 0.01)
     }
 
     @Test fun distanceInMiles() {
@@ -65,7 +89,7 @@ class PhotonSearchTest {
         val t = FakeTransport { answer(casaLinda) }
         val found = PhotonSearch(t).search("El Fenix", null) as SearchOutcome.Results
         assertNull(found.hits[0].miles)
-        assertTrue("lat=" !in t.asked.single())
+        assertTrue("lat=" !in t.asked.single() && "bbox=" !in t.asked.single())
     }
 
     @Test fun farAwayResultsHideWhenNearOnesExist() {
@@ -77,7 +101,7 @@ class PhotonSearchTest {
 
     @Test fun farAwayResultsStayWhenThatsAllThereIs() {
         val bronx = feature("Frankie's", 40.85, -73.88, city = "New York")
-        val found = PhotonSearch(FakeTransport { answer(bronx) }).search("Frankie's", garland) as SearchOutcome.Results
+        val found = PhotonSearch(FakeTransport { url -> if ("bbox=" in url) answer() else answer(bronx) }).search("Frankie's", garland) as SearchOutcome.Results
         assertEquals(1, found.hits.size)
     }
 
@@ -101,9 +125,11 @@ class PhotonSearchTest {
         val alamo = feature("Alamo Drafthouse Cinema", 32.8675, -96.7416, "6770", "Abrams Road", "Dallas")
         val woodbury = feature("Alamo Drafthouse", 44.92, -92.93, city = "Woodbury")
         val t = FakeTransport { url ->
+            val nearby = "bbox=" in url
             when (query(url)) {
                 "Alamo Drafthouse Lake Highlands" -> answer()
-                "Alamo Drafthouse Lake" -> answer(woodbury) // far away, so not good enough
+                // Woodbury is outside the nearby box, so it only turns up looking everywhere.
+                "Alamo Drafthouse Lake" -> if (nearby) answer() else answer(woodbury)
                 "Alamo Drafthouse" -> answer(alamo)
                 else -> error("asked for ${query(url)}")
             }
@@ -116,13 +142,14 @@ class PhotonSearchTest {
     @Test fun neverDropsDownToASingleWord() {
         val t = FakeTransport { answer() }
         assertEquals(SearchOutcome.NotFound, PhotonSearch(t).search("Alamo lake highlands", garland))
-        assertEquals(listOf("Alamo lake highlands", "Alamo lake"), t.asked.map(::query))
+        // Nearby, then everywhere, then shorter (nearby only).
+        assertEquals(listOf("Alamo lake highlands", "Alamo lake highlands", "Alamo lake"), t.asked.map(::query))
     }
 
     @Test fun oneWordMissIsNotFound() {
         val t = FakeTransport { answer() }
         assertEquals(SearchOutcome.NotFound, PhotonSearch(t).search("zzzz", garland))
-        assertEquals(1, t.asked.size)
+        assertEquals(2, t.asked.size) // nearby, then everywhere
     }
 
     @Test fun offline() =

@@ -224,6 +224,14 @@ class MapScreenTest {
     }
 
     @Test
+    fun shortestSwitchAsksForANewRoute() {
+        var toggled = false
+        composeRule.setContent { NewtTheme(darkTheme = true) { Screen(null, preview = preview, avoid = AvoidActions(onToggleShortest = { toggled = true })) } }
+        composeRule.onNodeWithText("Shortest").performClick()
+        assertTrue(toggled)
+    }
+
+    @Test
     fun avoidRoadsListSwitchesARoadForThisTrip() {
         var set: Pair<String, Boolean>? = null
         composeRule.setContent {

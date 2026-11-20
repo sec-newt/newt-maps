@@ -64,6 +64,8 @@ data class RoutePreview(
     val avoidTolls: Boolean,
     val practice: Boolean,
     val avoidHighways: Boolean = false,
+    /** The fewest miles, not the least time (often slower, on smaller roads). */
+    val shortest: Boolean = false,
 )
 
 /** A marked road on the route card's list: its name, and whether this trip avoids it. */
@@ -80,6 +82,7 @@ class AvoidActions(
     val onList: (Boolean) -> Unit = {},
     val onToggleTolls: () -> Unit = {},
     val onToggleHighways: () -> Unit = {},
+    val onToggleShortest: () -> Unit = {},
     val onSetRoad: (String, Boolean) -> Unit = { _, _ -> },
     val onRemoveRoad: (String) -> Unit = {},
 )
@@ -127,7 +130,7 @@ fun Turn.icon(): ImageVector = when (this) {
 private val Go = Color(0xFF9ECE6A)
 private val OnGo = Color(0xFF0B0C10)
 
-/** The card for a found route: time, distance, arrival, tolls, and a big Start. */
+/** The card for a found route: time, distance, arrival, route choices, and a big Start. */
 @Composable
 internal fun PreviewCard(preview: RoutePreview, onStart: () -> Unit, avoid: AvoidActions, onClose: () -> Unit, modifier: Modifier = Modifier) {
     Surface(
@@ -176,6 +179,7 @@ internal fun PreviewCard(preview: RoutePreview, onStart: () -> Unit, avoid: Avoi
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 AvoidToggle("No tolls", "tolls", preview.avoidTolls, avoid.onToggleTolls)
                 AvoidToggle("No highways", "highways", preview.avoidHighways, avoid.onToggleHighways)
+                AvoidToggle("Shortest", "shortest", preview.shortest, avoid.onToggleShortest, offLabel = "Use the shortest route", onLabel = "Use the fastest route")
                 val avoiding = avoid.roads.count { it.on }
                 AvoidToggle(
                     if (avoiding == 0) "Avoid roads" else "Avoiding $avoiding",
@@ -205,7 +209,7 @@ internal fun AvoidRoadsDialog(avoid: AvoidActions, onClose: () -> Unit = { avoid
                 }
                 roads.forEach { road ->
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Box(Modifier.weight(1f)) { AvoidToggle(road.name, road.name, road.on) { avoid.onSetRoad(road.name, !road.on) } }
+                        Box(Modifier.weight(1f)) { AvoidToggle(road.name, road.name, road.on, { avoid.onSetRoad(road.name, !road.on) }) }
                         NavIconButton(Icons.Filled.Delete, "Forget ${road.name}", { forgetting = road.name }, danger = true)
                     }
                 }
@@ -229,7 +233,14 @@ internal fun AvoidRoadsDialog(avoid: AvoidActions, onClose: () -> Unit = { avoid
  * set: "tolls") finds the route again; without [what] it's a button that opens something.
  */
 @Composable
-private fun AvoidToggle(label: String, what: String?, on: Boolean, onClick: () -> Unit) {
+private fun AvoidToggle(
+    label: String,
+    what: String?,
+    on: Boolean,
+    onClick: () -> Unit,
+    offLabel: String = "Avoid $what",
+    onLabel: String = "Allow $what",
+) {
     val shape = RoundedCornerShape(16.dp)
     val fill = Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.secondary))
     Box(
@@ -241,7 +252,7 @@ private fun AvoidToggle(label: String, what: String?, on: Boolean, onClick: () -
             .border(neonOutline(2.dp), shape)
             .then(
                 if (what != null) {
-                    Modifier.clickable(onClickLabel = if (on) "Allow $what" else "Avoid $what", role = Role.Switch, onClick = onClick)
+                    Modifier.clickable(onClickLabel = if (on) onLabel else offLabel, role = Role.Switch, onClick = onClick)
                         .semantics { stateDescription = if (on) "On" else "Off" }
                 } else {
                     Modifier.clickable(onClickLabel = "Choose roads to avoid", role = Role.Button, onClick = onClick)

@@ -42,6 +42,12 @@ class PhotonSearch(
     private val baseUrl: String = BASE_URL,
 ) {
     fun search(text: String, near: Pair<Double, Double>?): SearchOutcome {
+        // Photon's lat/lon only nudges the ranking, so "coffee broadway" can come back
+        // full of places in other states. Look around me first, and only then everywhere.
+        if (near != null) {
+            val local = ask(text, near, nearbyOnly = true)
+            if (local !is SearchOutcome.Results || local.hits.isNotEmpty()) return local
+        }
         val first = ask(text, near)
         if (first !is SearchOutcome.Results || first.hits.isNotEmpty()) return first.orNotFound()
         // Nothing at all: drop words from the end ("Alamo Drafthouse Lake Highlands" →
@@ -51,8 +57,8 @@ class PhotonSearch(
             if (words.size <= 2) return SearchOutcome.NotFound
             words = words.dropLast(1)
             val shorter = words.joinToString(" ")
-            when (val next = ask(shorter, near)) {
-                is SearchOutcome.Results -> if (next.hits.any { near == null || it.miles!! <= NEARBY_MILES }) return next.copy(shortenedTo = shorter)
+            when (val next = ask(shorter, near, nearbyOnly = near != null)) {
+                is SearchOutcome.Results -> if (next.hits.isNotEmpty()) return next.copy(shortenedTo = shorter)
                 else -> return next
             }
         }
@@ -61,11 +67,13 @@ class PhotonSearch(
 
     private fun SearchOutcome.orNotFound() = if (this is SearchOutcome.Results && hits.isEmpty()) SearchOutcome.NotFound else this
 
-    private fun ask(text: String, near: Pair<Double, Double>?): SearchOutcome {
+    /** [nearbyOnly]: only places within about [LOCAL_MILES] of [near] (a box around it). */
+    private fun ask(text: String, near: Pair<Double, Double>?, nearbyOnly: Boolean = false): SearchOutcome {
         val url = buildString {
             append(baseUrl).append("?q=").append(URLEncoder.encode(text, Charsets.UTF_8))
             append("&limit=").append(LIMIT).append("&lang=en")
             if (near != null) append("&lat=").append(near.first).append("&lon=").append(near.second)
+            if (near != null && nearbyOnly) append("&bbox=").append(box(near.first, near.second))
         }
         val body = try {
             transport.get(url)
@@ -108,14 +116,17 @@ class PhotonSearch(
         }
     }
 
-    /** Drop repeats of the same place, and far-away results when there are nearby ones. */
+    /**
+     * Drop repeats of the same place, and far-away results when there are nearby ones.
+     * Closest first, so of several shops with the same name the one down the road leads.
+     */
     private fun tidy(hits: List<SearchHit>, near: Pair<Double, Double>?): List<SearchHit> {
         val unique = hits.fold(listOf<SearchHit>()) { kept, hit ->
             if (kept.any { it.name == hit.name && miles(it.lat, it.lng, hit.lat, hit.lng) < 0.1 }) kept else kept + hit
         }
         if (near == null) return unique
         val nearby = unique.filter { it.miles!! <= NEARBY_MILES }
-        return nearby.ifEmpty { unique }
+        return nearby.ifEmpty { unique }.sortedBy { it.miles }
     }
 
     private fun JSONObject.text(key: String): String? = optString(key).trim().takeIf { it.isNotEmpty() }
@@ -125,6 +136,14 @@ class PhotonSearch(
         private const val LIMIT = 10
         private const val MAX_DROPS = 3
         private const val NEARBY_MILES = 60.0
+        private const val LOCAL_MILES = 30.0
+
+        /** Photon's bbox (west,south,east,north) reaching about [LOCAL_MILES] each way. */
+        private fun box(lat: Double, lng: Double): String {
+            val dLat = LOCAL_MILES / 69.0
+            val dLng = LOCAL_MILES / (69.0 * cos(Math.toRadians(lat)))
+            return "%.4f,%.4f,%.4f,%.4f".format(java.util.Locale.US, lng - dLng, lat - dLat, lng + dLng, lat + dLat)
+        }
 
         /** Straight-line miles between two points. */
         fun miles(lat1: Double, lng1: Double, lat2: Double, lng2: Double): Double {

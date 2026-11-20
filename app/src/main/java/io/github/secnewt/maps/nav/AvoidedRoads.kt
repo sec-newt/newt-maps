@@ -16,11 +16,15 @@ data class Spot(val lat: Double, val lng: Double)
  */
 data class AvoidedRoad(val name: String, val spots: List<Spot>, val on: Boolean = true)
 
-/** Everything a route is asked to avoid. A new set means a new route. */
+/**
+ * Everything a route is asked to avoid, and whether it should be the shortest (fewest
+ * miles) instead of the fastest. A new set means a new route.
+ */
 data class RouteOptions(
     val avoidTolls: Boolean,
     val avoidHighways: Boolean = false,
     val avoid: List<Spot> = emptyList(),
+    val shortest: Boolean = false,
 )
 
 /**

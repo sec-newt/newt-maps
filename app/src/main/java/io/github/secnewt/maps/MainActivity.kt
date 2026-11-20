@@ -123,6 +123,7 @@ class MainActivity : ComponentActivity() {
         val placeIsHome = (card as? MapCard.Place)?.let { saved.isHome(it.lat, it.lng) } ?: false
         val savedHits = { places: List<SavedPlace>, near: Pair<Double, Double>? ->
             places.map { SearchHit(it.name, it.address.orEmpty(), it.lat, it.lng, near?.let { n -> PhotonSearch.miles(n.first, n.second, it.lat, it.lng) }, saved = true) }
+                .sortedBy { it.miles }
         }
         val pick = { hit: SearchHit ->
             card = MapCard.Place(hit.name, hit.lat, hit.lng, hit.address.ifEmpty { null })
@@ -156,6 +157,7 @@ class MainActivity : ComponentActivity() {
         var route by remember { mutableStateOf<Route?>(null) }
         var avoidTolls by remember { mutableStateOf(navPrefs.getBoolean("avoid_tolls", true)) }
         var avoidHighways by remember { mutableStateOf(navPrefs.getBoolean("avoid_highways", false)) }
+        var shortest by remember { mutableStateOf(navPrefs.getBoolean("shortest", false)) }
         // The marked roads, and a count bumped on every change so the route card redraws.
         var roadsVersion by remember { mutableStateOf(0) }
         var roadsListOpen by remember { mutableStateOf(false) }
@@ -163,7 +165,7 @@ class MainActivity : ComponentActivity() {
         // slow answer for the old choices can't land on top of the new one.
         var routeJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
         // Read fresh each time: a lambda made earlier would otherwise keep the old choices.
-        val currentOptions = { roadsVersion.let { RouteOptions(avoidTolls, avoidHighways, avoided.activeSpots()) } }
+        val currentOptions = { roadsVersion.let { RouteOptions(avoidTolls, avoidHighways, avoided.activeSpots(), shortest) } }
         val options = currentOptions()
         var driving by remember { mutableStateOf(false) }
         var muted by remember { mutableStateOf(false) }
@@ -326,7 +328,7 @@ class MainActivity : ComponentActivity() {
             },
             onDirections = findRoute,
             preview = route?.takeIf { !driving }?.let {
-                NavGuidance.preview(it, destination?.name.orEmpty(), avoidTolls, practice.value).copy(avoidHighways = avoidHighways)
+                NavGuidance.preview(it, destination?.name.orEmpty(), avoidTolls, practice.value).copy(avoidHighways = avoidHighways, shortest = shortest)
             },
             onStart = {
                 route?.let { found ->
@@ -349,6 +351,11 @@ class MainActivity : ComponentActivity() {
                 onToggleHighways = {
                     avoidHighways = !avoidHighways
                     navPrefs.edit().putBoolean("avoid_highways", avoidHighways).apply()
+                    reroute()
+                },
+                onToggleShortest = {
+                    shortest = !shortest
+                    navPrefs.edit().putBoolean("shortest", shortest).apply()
                     reroute()
                 },
                 onSetRoad = { name, on ->

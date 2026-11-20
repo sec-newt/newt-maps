@@ -50,6 +50,8 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // Ferrostar uses newer Java date/time classes; this backports them.
+        isCoreLibraryDesugaringEnabled = true
     }
     buildFeatures {
         compose = true
@@ -84,6 +86,13 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
     implementation(libs.androidx.material.icons.core)
+    // The map: MapLibre draws OpenStreetMap vector tiles (BSD license, no Google, no tracking).
+    implementation(libs.maplibre)
+    implementation(libs.androidx.lifecycle.runtime.compose)
+    // Turn-by-turn: Ferrostar (BSD) routes with Valhalla and speaks each turn.
+    implementation(libs.ferrostar.core)
+    implementation(libs.okhttp)
+    coreLibraryDesugaring(libs.desugar.jdk.libs)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
 

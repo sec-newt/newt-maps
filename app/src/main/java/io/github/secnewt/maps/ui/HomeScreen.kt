@@ -1,5 +1,18 @@
 package io.github.secnewt.maps.ui
 
+import io.github.secnewt.ui.NewtButton
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Home
+import io.github.secnewt.ui.NewtSteps
+import io.github.secnewt.ui.NewtStep
+import io.github.secnewt.ui.NewtStepState
+import io.github.secnewt.ui.NewtPrimaryButton
+import io.github.secnewt.ui.NewtSettingsCard
+import io.github.secnewt.ui.NewtSwitchRow
+import io.github.secnewt.ui.NewtInfo
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.Settings
 import android.content.Context
 import android.content.pm.verify.domain.DomainVerificationManager
 import android.content.pm.verify.domain.DomainVerificationUserState
@@ -11,6 +24,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -30,37 +44,98 @@ fun linkHostsAllOn(context: Context): Boolean {
     return state.hostToStateMap.values.all { it != DomainVerificationUserState.DOMAIN_STATE_NONE }
 }
 
+/**
+ * Setup and settings: numbered steps (a map app, link opening, try it), what happens after,
+ * and in Settings the practice-drive switch. [mapApp] is the first map app found, if any.
+ */
 @Composable
-fun HomeScreen(linksNeedTurningOn: Boolean, onTurnOn: () -> Unit) {
+fun HomeScreen(
+    linksNeedTurningOn: Boolean,
+    onTurnOn: () -> Unit,
+    onBack: (() -> Unit)? = null,
+    practice: Boolean = false,
+    onPractice: (Boolean) -> Unit = {},
+    mapApp: String? = null,
+    /** My home's name and address, or null when it isn't set. */
+    home: String? = null,
+    onClearHome: () -> Unit = {},
+) {
     Scaffold { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Text(
-                stringResource(R.string.app_name),
-                style = MaterialTheme.typography.headlineLarge,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.semantics { heading() },
-            )
-            if (linksNeedTurningOn) {
+            if (onBack != null) {
+                io.github.secnewt.ui.ScreenHeader("Settings", onBack)
+            } else {
                 Text(
-                    "Google and Apple Maps links open in their own apps until you turn this on. It's one time.",
-                    style = MaterialTheme.typography.titleLarge,
+                    stringResource(R.string.app_name),
+                    style = MaterialTheme.typography.headlineLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.semantics { heading() },
                 )
-                Button(onClick = onTurnOn, modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp)) {
-                    Text("Turn on link opening", style = MaterialTheme.typography.titleLarge)
-                }
-                Text("On the next screen: Add links → turn on every link.", style = MaterialTheme.typography.bodyLarge)
             }
-            Text(
-                "Tap a maps link, or Share → Newt Maps. Then pick the map app to open it in.",
-                style = MaterialTheme.typography.bodyLarge,
+            Text("Open Google and Apple Maps links in the map app you pick.", style = MaterialTheme.typography.bodyLarge)
+            val hasApp = mapApp != null
+            NewtSteps(
+                listOf(
+                    NewtStep(
+                        "Install a map app",
+                        if (hasApp) NewtStepState.Done else NewtStepState.Now,
+                        hint = if (hasApp) "$mapApp found" else "Install Organic Maps, CoMaps or Magic Earth",
+                    ),
+                    NewtStep(
+                        "Turn on link opening",
+                        when {
+                            !linksNeedTurningOn -> NewtStepState.Done
+                            hasApp -> NewtStepState.Now
+                            else -> NewtStepState.ToDo
+                        },
+                        hint = if (linksNeedTurningOn) "One time. Turn on every link on the next screen." else "On",
+                        action = { NewtPrimaryButton("Turn on", onClick = onTurnOn, modifier = Modifier.fillMaxWidth()) },
+                    ),
+                    NewtStep(
+                        "Try it",
+                        if (hasApp && !linksNeedTurningOn) NewtStepState.Now else NewtStepState.ToDo,
+                        hint = "Tap any maps link, or Share → Newt Maps",
+                    ),
+                ),
             )
+            NewtSettingsCard("Then it does this", icon = Icons.Filled.Place) {
+                Text(
+                    "maps.google.com/… → opens in ${mapApp ?: "your map app"}",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                )
+            }
+            if (onBack != null) {
+                NewtSettingsCard("Home", icon = Icons.Filled.Home) {
+                    Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text(
+                            home ?: "Not set. Search for your address, then tap Set as home on its card.",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        if (home != null) NewtButton("Clear home", onClick = onClearHome, icon = Icons.Filled.Delete)
+                    }
+                }
+                NewtSettingsCard("Driving", icon = Icons.Filled.Settings) {
+                    NewtSwitchRow("Practice drives", practice, onPractice, hint = "Drives the route by itself, so you can try it")
+                    NewtInfo(
+                        "Routes come from your own server on persephone, over Tailscale. The map comes from OpenFreeMap, " +
+                            "using OpenStreetMap data; it sees which area you look at, not who you are. Search uses " +
+                            "Photon (komoot's public server, OpenStreetMap data) and sends what you type plus your " +
+                            "location or the map's middle, so nearby places come first. Links are looked up with " +
+                            "OpenStreetMap's Nominatim. Home and saved places stay on this phone.",
+                        label = "Where maps and routes come from",
+                    )
+                }
+            }
         }
     }
 }

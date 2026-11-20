@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<lint>
+    <!-- Ferrostar's background navigation service posts a notification, but Newt Maps doesn't
+         use or declare that service (navigation runs in the open app), so it never runs and
+         no notification permission is needed. Ignored for that class only. -->
+    <issue id="NotificationPermission">
+        <ignore regexp="FerrostarForegroundService" />
+    </issue>
+</lint>

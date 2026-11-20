@@ -51,6 +51,10 @@ class GoogleLookup(private val context: Context) {
             // else is stopped before it loads, so no other site's page runs in the lookup.
             override fun shouldOverrideUrlLoading(v: WebView, request: WebResourceRequest): Boolean =
                 !allowsNavigation(request.url.toString())
+            // A form sent with POST skips the check above; stop such a page as it starts.
+            override fun onPageStarted(v: WebView, url: String, favicon: android.graphics.Bitmap?) {
+                if (!allowsNavigation(url)) { v.stopLoading(); finish(null) }
+            }
             override fun doUpdateVisitedHistory(v: WebView, url: String, isReload: Boolean) = check(url)
             override fun onPageFinished(v: WebView, url: String) = check(url)
         }

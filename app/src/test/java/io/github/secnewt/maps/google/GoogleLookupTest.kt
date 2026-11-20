@@ -17,6 +17,7 @@ class GoogleLookupTest {
     @Test fun lookAlikesAreNot() {
         assertFalse(GoogleLookup.isGoogleLink("https://notgoogle.com/maps"))
         assertFalse(GoogleLookup.isGoogleLink("https://evilgoo.gl/x"))
+        assertFalse(GoogleLookup.isGoogleLink("https://sites.google.com/view/example"))
         assertFalse(GoogleLookup.isGoogleLink("https://google.com.example.net/maps"))
         assertFalse(GoogleLookup.isGoogleLink("https://google.com@example.net/maps"))
         assertFalse(GoogleLookup.isGoogleLink("javascript://google.com/%0Aalert(1)"))

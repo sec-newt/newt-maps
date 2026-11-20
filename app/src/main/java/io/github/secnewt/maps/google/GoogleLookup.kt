@@ -11,6 +11,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import io.github.secnewt.maps.link.LinkResult
 import io.github.secnewt.maps.link.LinkReader
+import io.github.secnewt.maps.link.ShortLinkResolver
 import kotlin.math.abs
 
 /**
@@ -89,18 +90,17 @@ class GoogleLookup(private val context: Context) {
 
     companion object {
         const val TIMEOUT_MS = 20_000L
-        private val GOOGLE_HOSTS = listOf("google.com", "goo.gl")
-
         /**
-         * A web link on Google's own host: google.com, goo.gl, or a part of them
-         * (maps.google.com, maps.app.goo.gl). A look-alike such as "notgoogle.com" or
-         * "google.com.example.net" is not, so its page never runs in the lookup.
+         * A web link on one of Google's map hosts, the same ones the short-link reader trusts
+         * ([ShortLinkResolver.GOOGLE]). A look-alike such as "notgoogle.com" or
+         * "google.com.example.net" is not, nor a Google host for other people's pages
+         * (sites.google.com), so their script never runs in the lookup.
          */
         fun isGoogleLink(link: String): Boolean {
             val uri = try { java.net.URI(link) } catch (_: java.net.URISyntaxException) { return false }
             if (uri.scheme?.lowercase() !in setOf("http", "https")) return false
             val host = uri.host?.lowercase()?.trimEnd('.') ?: return false
-            return GOOGLE_HOSTS.any { host == it || host.endsWith(".$it") }
+            return host in ShortLinkResolver.GOOGLE
         }
         const val POLL_MS = 500L
     }

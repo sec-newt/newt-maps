@@ -89,6 +89,19 @@ class PickerScreenTest {
     @Test fun failedWithSearchLargeText() =
         composeRule.newtScreenshot("picker-failed-search-200pct", dark = true, fontScale = 2f) { screen(failedWithSearch) }
 
+    @Test fun askGoogleButtonCallsBack() {
+        var asked = false
+        composeRule.setContent {
+            PickerScreen(failedWithSearch.copy(canAskGoogle = true), onOpenIn = {}, onCopy = {}, onOpenBrowser = {}, onAskGoogle = { asked = true })
+        }
+        composeRule.onNodeWithText("Ask Google (test)").performScrollTo().performClick()
+        assertEquals(true, asked)
+    }
+
+    @Test fun askGoogleLargeText() = composeRule.newtScreenshot("picker-askgoogle-200pct", dark = true, fontScale = 2f) {
+        screen(failedWithSearch.copy(canAskGoogle = true))
+    }
+
     @Test fun failedLight() = composeRule.newtScreenshot("picker-failed-light", dark = false) { screen(failed) }
 
     @Test fun failedLargeText() =

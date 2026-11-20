@@ -102,7 +102,10 @@ Small pieces, each testable on its own:
    20s timeout — still failed: it caught a rewrite, but to a placeholder `@0,0` world view,
    not the place that was searched for. A third try turned on DOM storage (off by default
    in a `WebView`, and Google Maps needs it) and removed the WebView marker from the
-   User-Agent: still no coordinates. There is no **Ask Google** button; **Open in
+   User-Agent: still no coordinates. **2026-10-20: re-testing on Jerry's phone** — CI runs in
+   a data centre, and Google may serve those addresses a consent page or a stripped-down page,
+   which would explain all three failures. The third version is back as **Ask Google (test)**
+   until the phone test decides; if it fails there too, port GeoShare's version. Until then: **Open in
    browser** is the only way out of "Couldn't find it".
 5. **`MapApps`** asks Android which installed apps open `geo:` links (`<queries>` for the
    `geo` scheme), so whatever build is installed shows up (`app.organicmaps`,

@@ -5,6 +5,7 @@ import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import android.webkit.CookieManager
+import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebStorage
 import android.webkit.WebView
@@ -42,6 +43,10 @@ class GoogleLookup(private val context: Context) {
         view.settings.databaseEnabled = true
         view.settings.userAgentString = WebSettings.getDefaultUserAgent(context).replace("; wv", "")
         view.webViewClient = object : WebViewClient() {
+            // Redirects and the page's own navigations stay on Google's map hosts: anything
+            // else is stopped before it loads, so no other site's page runs in the lookup.
+            override fun shouldOverrideUrlLoading(v: WebView, request: WebResourceRequest): Boolean =
+                !allowsNavigation(request.url.toString())
             override fun doUpdateVisitedHistory(v: WebView, url: String, isReload: Boolean) = check(url)
             override fun onPageFinished(v: WebView, url: String) = check(url)
         }
@@ -102,6 +107,20 @@ class GoogleLookup(private val context: Context) {
             val host = uri.host?.lowercase()?.trimEnd('.') ?: return false
             return host in ShortLinkResolver.GOOGLE
         }
+
+        /**
+         * Where the lookup's page may go next: Google's map hosts, plus Google's own cookie
+         * consent page, which it shows first in some places (and whose answer isn't kept).
+         * The page's pictures and scripts from Google's other hosts still load; only whole-page
+         * navigations are checked.
+         */
+        fun allowsNavigation(url: String): Boolean =
+            isGoogleLink(url) || try {
+                val uri = java.net.URI(url)
+                uri.scheme?.lowercase() == "https" && uri.host?.lowercase()?.trimEnd('.') == "consent.google.com"
+            } catch (_: java.net.URISyntaxException) {
+                false
+            }
         const val POLL_MS = 500L
     }
 }

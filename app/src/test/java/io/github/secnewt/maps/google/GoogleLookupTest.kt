@@ -25,4 +25,13 @@ class GoogleLookupTest {
         assertFalse(GoogleLookup.isGoogleLink("geo:0,0?q=Example"))
         assertFalse(GoogleLookup.isGoogleLink("not a link"))
     }
+
+    @Test fun thePageMayOnlyMoveToGoogleMapsOrItsConsentPage() {
+        assertTrue(GoogleLookup.allowsNavigation("https://www.google.com/maps/place/Example+Park/@32.9,-96.6,15z"))
+        assertTrue(GoogleLookup.allowsNavigation("https://consent.google.com/ml?continue=https://www.google.com/maps"))
+        assertFalse(GoogleLookup.allowsNavigation("http://consent.google.com/ml"))
+        assertFalse(GoogleLookup.allowsNavigation("https://example.com/after-redirect"))
+        assertFalse(GoogleLookup.allowsNavigation("intent://example#Intent;scheme=https;end"))
+        assertFalse(GoogleLookup.allowsNavigation("https://sites.google.com/view/example"))
+    }
 }

@@ -1,0 +1,65 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# CodeRabbit AI review — trial run. Tuned to be quiet: real bugs, security,
+# privacy, and accessibility, not style nitpicks. Delete this file and
+# uninstall the GitHub App to end the trial.
+language: en-US
+tone_instructions: "Be brief and direct. Skip praise. Only comment when something is wrong or risky."
+
+reviews:
+  profile: chill
+  request_changes_workflow: false
+  high_level_summary: true
+  collapse_walkthrough: true
+  review_details: false
+  changed_files_summary: false
+  sequence_diagrams: false
+  estimate_code_review_effort: false
+  related_issues: false
+  related_prs: false
+  suggested_labels: false
+  suggested_reviewers: false
+  in_progress_fortune: false
+  poem: false
+
+  auto_review:
+    enabled: true
+    drafts: false
+    ignore_title_keywords: ["WIP", "[skip review]"]
+    ignore_usernames: ["dependabot[bot]"]
+
+  path_filters:
+    - "!**/build/**"
+    - "!gradle/wrapper/**"
+
+  path_instructions:
+    - path: "**/*.kt"
+      instructions: |
+        This is a privacy-focused maps and turn-by-turn navigation app for
+        GrapheneOS. Focus on, in order:
+        1. Privacy: the user's location, search text, destinations, saved
+           places, and avoided roads must never reach logs (Log.*, println,
+           crash reports). They may only be sent to the search server
+           (Photon), the link geocoder (Nominatim), and the self-hosted route
+           server, and only what each request needs. Flag any new network
+           destination.
+        2. Correctness: wrong route options sent to Valhalla, stale routes or
+           state after a reroute, network or disk work on the main thread,
+           coroutine cancellation bugs, unsafe file writes to saved places or
+           avoided roads, wrong distance or arrival math.
+        3. Accessibility: the primary user has low vision and uses this while
+           driving. Flag Compose UI missing contentDescription/semantics,
+           touch targets under 48dp, hard-coded small text sizes, meaning
+           carried by color alone, and spoken or screen-reader text that is
+           unclear.
+        Do not comment on naming, formatting, or minor style.
+    - path: "**/AndroidManifest.xml"
+      instructions: |
+        Flag any new permission, exported component, or intent filter, and
+        check it against config/allowed-permissions.txt.
+    - path: ".github/workflows/**"
+      instructions: |
+        Flag unpinned actions (must be pinned to a full commit SHA), widened
+        token permissions, and pull_request_target usage.
+
+chat:
+  auto_reply: true

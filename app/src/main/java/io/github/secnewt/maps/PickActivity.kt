@@ -53,7 +53,7 @@ class PickActivity : ComponentActivity() {
                             canOpenBrowser = outcome.link != null && !outcome.link.startsWith("geo:"),
                             searchText = outcome.searchText,
                             apps = if (outcome.searchText != null) apps.installed() else emptyList(),
-                            canAskGoogle = outcome.link != null && outcome.why != Why.NO_INTERNET && isGoogle(outcome.link),
+                            canAskGoogle = outcome.link != null && outcome.why != Why.NO_INTERNET && GoogleLookup.isGoogleLink(outcome.link),
                         )
                     }
                 }
@@ -98,9 +98,6 @@ class PickActivity : ComponentActivity() {
         googleLookup?.cancel()
         super.onDestroy()
     }
-
-    private fun isGoogle(link: String) =
-        Uri.parse(link).host?.let { it.endsWith("google.com") || it.endsWith("goo.gl") } == true
 
     private fun copy(place: LinkResult.Place) {
         getSystemService(ClipboardManager::class.java)

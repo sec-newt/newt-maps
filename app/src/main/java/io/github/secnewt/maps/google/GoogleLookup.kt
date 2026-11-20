@@ -6,6 +6,7 @@ import android.os.Handler
 import android.os.Looper
 import android.webkit.CookieManager
 import android.webkit.WebSettings
+import android.webkit.WebStorage
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import io.github.secnewt.maps.link.LinkResult
@@ -15,7 +16,8 @@ import kotlin.math.abs
 /**
  * "Ask Google": loads the link in an off-screen WebView so Google's own page runs and
  * rewrites its address to the …/@lat,lng form, then reads the coordinates from that address.
- * No cookies are kept. Only used when the user taps Ask Google.
+ * No cookies or site storage are kept. Only used when the user taps Ask Google, and only
+ * for Google's own addresses ([isGoogleLink]).
  */
 class GoogleLookup(private val context: Context) {
 
@@ -54,6 +56,8 @@ class GoogleLookup(private val context: Context) {
         webView = null
         done = null
         CookieManager.getInstance().removeAllCookies(null)
+        // DOM storage is on for the lookup; don't leave Google's localStorage behind either.
+        WebStorage.getInstance().deleteAllData()
     }
 
     private fun check(url: String) {
@@ -85,6 +89,19 @@ class GoogleLookup(private val context: Context) {
 
     companion object {
         const val TIMEOUT_MS = 20_000L
+        private val GOOGLE_HOSTS = listOf("google.com", "goo.gl")
+
+        /**
+         * A web link on Google's own host: google.com, goo.gl, or a part of them
+         * (maps.google.com, maps.app.goo.gl). A look-alike such as "notgoogle.com" or
+         * "google.com.example.net" is not, so its page never runs in the lookup.
+         */
+        fun isGoogleLink(link: String): Boolean {
+            val uri = try { java.net.URI(link) } catch (_: java.net.URISyntaxException) { return false }
+            if (uri.scheme?.lowercase() !in setOf("http", "https")) return false
+            val host = uri.host?.lowercase()?.trimEnd('.') ?: return false
+            return GOOGLE_HOSTS.any { host == it || host.endsWith(".$it") }
+        }
         const val POLL_MS = 500L
     }
 }

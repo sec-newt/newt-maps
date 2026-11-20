@@ -15,8 +15,11 @@ Obtainium from this repository's Releases page.
 
 Tap a Google Maps or Apple Maps link (or Share → Newt Maps), and it shows the place in
 big type with one button per installed map app (Organic Maps, CoMaps, Magic Earth,
-OsmAnd). Text-only Google links are looked up on OpenStreetMap's Nominatim; nothing is
-sent to Google. Short links are followed only through Google's or Apple's own servers.
+OsmAnd). Text-only Google links are looked up on OpenStreetMap's Nominatim,
+not Google. Short links are followed only through Google's or Apple's own servers.
+
+If Nominatim can't find the place, the "Couldn't find it" screen offers **Ask Google
+(test)** for Google links. That sends the link to Google, so it only happens when you tap it.
 
 **One-time setup:** Android won't let a third-party app take google.com or apple.com links
 by itself. Open Newt Maps → **Turn on link opening** → Add links → turn on every link.

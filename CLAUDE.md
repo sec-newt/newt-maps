@@ -28,7 +28,8 @@ the Newt packages (a 401), the GitHub login needs `read:packages`: ask the owner
 ## Rules that are easy to break
 
 - **The internet is only for the places already listed** in `config/allowed-permissions.txt`
-  and the code: Google/Apple short links, Nominatim and Photon for search, OpenFreeMap
+  and the code: Google/Apple short links, Nominatim and Photon for search, Ask Google
+  (only when tapped, owner-approved for links other people send), OpenFreeMap
   tiles, and the owner's own Valhalla route server over Tailscale. A new server,
   or sending anything more to one, needs the owner's OK and a README line. Location is
   asked for only when "where am I" is tapped, and never sent anywhere except as a search.

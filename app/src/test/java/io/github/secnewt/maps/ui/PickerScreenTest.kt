@@ -58,6 +58,28 @@ class PickerScreenTest {
         assertEquals("com.generalmagic.magicearth", chosen?.packageName)
     }
 
+    @Test fun newtMapsButtonsLeadDark() {
+        composeRule.newtScreenshot("picker-ready-newt-dark", dark = true) {
+            PickerScreen(ready, onOpenIn = {}, onCopy = {}, onOpenBrowser = {}, onNewtMaps = {})
+        }
+        composeRule.onNodeWithText("Directions").assertIsDisplayed()
+        composeRule.onNodeWithText("Show on map").assertIsDisplayed()
+    }
+
+    @Test fun directionsAndShowOnMapGoToNewtMaps() {
+        val asked = mutableListOf<Boolean>()
+        composeRule.setContent { PickerScreen(ready, onOpenIn = {}, onCopy = {}, onOpenBrowser = {}, onNewtMaps = { asked += it }) }
+        composeRule.onNodeWithText("Directions").performClick()
+        composeRule.onNodeWithText("Show on map").performClick()
+        assertEquals(listOf(true, false), asked)
+    }
+
+    @Test fun noNewtMapsButtonsWhenOpenedFromTheMap() {
+        composeRule.setContent { screen(ready) }
+        composeRule.onNodeWithText("Directions").assertDoesNotExist()
+        composeRule.onNodeWithText("Show on map").assertDoesNotExist()
+    }
+
     @Test fun droppedPinWhenNoName() {
         composeRule.setContent { screen(PickerState.Ready(Place(32.91, -96.63), apps)) }
         composeRule.onNodeWithText("Dropped pin").assertIsDisplayed()

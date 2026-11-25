@@ -39,7 +39,9 @@ class MapController {
 
     /** Center on a place and mark it with the big dot. */
     fun show(lat: Double, lng: Double) {
-        style?.getSourceAs<GeoJsonSource>(MapStyle.PLACE_SOURCE)?.setGeoJson(Point.fromLngLat(lng, lat))
+        // Kept, so a place handed in before the map finished loading (a link) still gets its dot.
+        place = Point.fromLngLat(lng, lat)
+        style?.getSourceAs<GeoJsonSource>(MapStyle.PLACE_SOURCE)?.setGeoJson(place)
         map?.animateCamera(CameraUpdateFactory.newLatLngZoom(LatLng(lat, lng), 16.0), 600)
     }
 
@@ -53,12 +55,14 @@ class MapController {
     }
 
     internal var saved: List<Triple<String, Double, Double>> = emptyList()
+    internal var place: Point? = null
 
     /** Mark several places (search results) and fit them all on screen above the results card. */
     fun showMany(points: List<Pair<Double, Double>>) {
         if (points.isEmpty()) return
         if (points.size == 1) return show(points[0].first, points[0].second)
         val dots = org.maplibre.geojson.FeatureCollection.fromFeatures(points.map { (lat, lng) -> org.maplibre.geojson.Feature.fromGeometry(Point.fromLngLat(lng, lat)) })
+        place = null
         style?.getSourceAs<GeoJsonSource>(MapStyle.PLACE_SOURCE)?.setGeoJson(dots)
         val bounds = org.maplibre.android.geometry.LatLngBounds.Builder().includes(points.map { (lat, lng) -> LatLng(lat, lng) }).build()
         val height = map?.height?.toInt() ?: 0
@@ -143,6 +147,7 @@ class MapController {
         .build()
 
     fun clearPlace() {
+        place = null
         style?.getSourceAs<GeoJsonSource>(MapStyle.PLACE_SOURCE)?.setGeoJson(org.maplibre.geojson.FeatureCollection.fromFeatures(emptyList()))
     }
 
@@ -266,7 +271,11 @@ fun NewtMap(
     LaunchedEffect(dark, textScale) {
         mapView.getMapAsync { map ->
             android.util.Log.i("NewtMap", "setting style dark=$dark scale=$textScale")
-            map.setStyle(Style.Builder().fromJson(MapStyle.json(dark, textScale))) { style -> controller.style = style; controller.showSaved(controller.saved) }
+            map.setStyle(Style.Builder().fromJson(MapStyle.json(dark, textScale))) { style ->
+                controller.style = style
+                controller.showSaved(controller.saved)
+                controller.place?.let { style.getSourceAs<GeoJsonSource>(MapStyle.PLACE_SOURCE)?.setGeoJson(it) }
+            }
         }
     }
     AndroidView(factory = { mapView }, modifier = modifier)

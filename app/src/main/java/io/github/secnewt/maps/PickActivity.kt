@@ -68,6 +68,9 @@ class PickActivity : ComponentActivity() {
                     },
                     onCopy = { place?.let(::copy) },
                     onOpenBrowser = { link?.let(::openInBrowser) },
+                    onNewtMaps = if (intent.getBooleanExtra(EXTRA_FROM_MAP, false)) null else { directions ->
+                        place?.let { openInNewtMaps(it, directions) }
+                    },
                     onSearchIn = { app ->
                         (state as? PickerState.Failed)?.searchText?.let {
                             startActivity(apps.search(it, app))
@@ -99,9 +102,29 @@ class PickActivity : ComponentActivity() {
         super.onDestroy()
     }
 
+    private fun openInNewtMaps(place: LinkResult.Place, directions: Boolean) {
+        startActivity(
+            Intent(this, MainActivity::class.java)
+                // Into the app's own task, reusing the map if it's already open.
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                .putExtra(MainActivity.EXTRA_LAT, place.lat)
+                .putExtra(MainActivity.EXTRA_LNG, place.lng)
+                .putExtra(MainActivity.EXTRA_ZOOM, 16.0)
+                .putExtra(MainActivity.EXTRA_NAME, place.name ?: place.address ?: "Dropped pin")
+                .putExtra(MainActivity.EXTRA_ADDRESS, place.address.takeIf { place.name != null })
+                .putExtra(MainActivity.EXTRA_DIRECTIONS, directions),
+        )
+        finish()
+    }
+
     private fun copy(place: LinkResult.Place) {
         getSystemService(ClipboardManager::class.java)
             .setPrimaryClip(ClipData.newPlainText("Coordinates", coordinates(place)))
+    }
+
+    companion object {
+        /** Opened from Newt Maps' own "Open in another app": no buttons leading back. */
+        const val EXTRA_FROM_MAP = "from_map"
     }
 
     private fun openInBrowser(link: String) {

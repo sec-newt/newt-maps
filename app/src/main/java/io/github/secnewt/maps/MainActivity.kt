@@ -35,6 +35,7 @@ import io.github.secnewt.maps.link.LinkResult
 import io.github.secnewt.maps.saved.SavedPlace
 import io.github.secnewt.maps.saved.SavedPlaces
 import io.github.secnewt.maps.search.PhotonSearch
+import io.github.secnewt.maps.search.PlaceSearch
 import java.io.File
 import io.github.secnewt.maps.search.SearchHit
 import io.github.secnewt.maps.search.SearchOutcome
@@ -63,7 +64,9 @@ import org.maplibre.android.geometry.LatLng
 class MainActivity : ComponentActivity() {
     private val needsTurningOn = mutableStateOf(true)
     private val controller = MapController()
-    private val search by lazy { PhotonSearch() }
+    private val search by lazy { PlaceSearch() }
+    // A place handed over by a maps link (PickActivity): show it, or find a route to it.
+    private val incoming = mutableStateOf<Incoming?>(null)
     private val saved by lazy { SavedPlaces(File(filesDir, "saved.json")) }
     // Bumped on every change to saved places, so the screen redraws.
     private val savedVersion = mutableStateOf(0)
@@ -76,6 +79,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         practice.value = navPrefs.getBoolean("practice", false)
+        if (savedInstanceState == null) incoming.value = Incoming.from(intent)
         setContent {
             NewtTheme {
                 var showSettings by rememberSaveable { mutableStateOf(false) }
@@ -223,6 +227,22 @@ class MainActivity : ComponentActivity() {
             if (driving) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             onDispose { window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
         }
+        // A place from a maps link. Not while driving: the trip keeps the screen.
+        val handed = incoming.value
+        LaunchedEffect(handed) {
+            if (handed == null) return@LaunchedEffect
+            incoming.value = null
+            if (driving) {
+                card = MapCard.Note("Stop driving first to go to ${handed.place.name}.")
+                return@LaunchedEffect
+            }
+            results = null
+            route = null
+            controller.clearRoute()
+            card = handed.place
+            controller.show(handed.place.lat, handed.place.lng)
+            if (handed.directions) findRoute(handed.place)
+        }
         if (driving) BackHandler { stopDriving() }
         if (route != null && !driving) BackHandler { route = null; controller.clearRoute() }
         if (card != null) BackHandler { closeCard() }
@@ -328,7 +348,7 @@ class MainActivity : ComponentActivity() {
             },
             onOpenElsewhere = { place ->
                 val uri = geoUri(LinkResult.Place(place.lat, place.lng, name = place.name))
-                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(uri)).setClass(this, PickActivity::class.java))
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(uri)).setClass(this, PickActivity::class.java).putExtra(PickActivity.EXTRA_FROM_MAP, true))
             },
             onDirections = findRoute,
             preview = route?.takeIf { !driving }?.let {
@@ -399,6 +419,24 @@ class MainActivity : ComponentActivity() {
         return CameraPosition.Builder().target(at).zoom(zoom).build()
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        Incoming.from(intent)?.let { incoming.value = it }
+    }
+
+    /** A place sent from a maps link, and whether to go straight to directions. */
+    private data class Incoming(val place: MapCard.Place, val directions: Boolean) {
+        companion object {
+            fun from(intent: Intent): Incoming? {
+                val name = intent.getStringExtra(EXTRA_NAME) ?: return null
+                val lat = intent.getDoubleExtra(EXTRA_LAT, Double.NaN)
+                val lng = intent.getDoubleExtra(EXTRA_LNG, Double.NaN)
+                if (lat.isNaN() || lng.isNaN()) return null
+                return Incoming(MapCard.Place(name, lat, lng, intent.getStringExtra(EXTRA_ADDRESS)), intent.getBooleanExtra(EXTRA_DIRECTIONS, false))
+            }
+        }
+    }
+
     override fun onDestroy() {
         if (isFinishing) navigator.shutdown()
         super.onDestroy()
@@ -416,5 +454,10 @@ class MainActivity : ComponentActivity() {
         const val EXTRA_LAT = "lat"
         const val EXTRA_LNG = "lng"
         const val EXTRA_ZOOM = "zoom"
+        /** With [EXTRA_LAT]/[EXTRA_LNG]: open on this place's card. */
+        const val EXTRA_NAME = "name"
+        const val EXTRA_ADDRESS = "address"
+        /** With [EXTRA_NAME]: and find a route to it. */
+        const val EXTRA_DIRECTIONS = "directions"
     }
 }

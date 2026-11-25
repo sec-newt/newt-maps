@@ -57,6 +57,8 @@ fun PickerScreen(
     onOpenBrowser: () -> Unit,
     onSearchIn: (MapApp) -> Unit = {},
     onAskGoogle: () -> Unit = {},
+    /** Show the place in Newt Maps itself (true = and find a route). Null when we came from there. */
+    onNewtMaps: ((directions: Boolean) -> Unit)? = null,
 ) {
     Scaffold { padding ->
         Column(
@@ -72,7 +74,7 @@ fun PickerScreen(
                     CircularProgressIndicator()
                     Text(state.message, style = MaterialTheme.typography.headlineSmall)
                 }
-                is PickerState.Ready -> Ready(state, onOpenIn, onCopy, onOpenBrowser)
+                is PickerState.Ready -> Ready(state, onOpenIn, onCopy, onOpenBrowser, onNewtMaps)
                 is PickerState.Failed -> Failed(state, onOpenBrowser, onSearchIn, onAskGoogle)
             }
         }
@@ -80,18 +82,29 @@ fun PickerScreen(
 }
 
 @Composable
-private fun Ready(state: PickerState.Ready, onOpenIn: (MapApp) -> Unit, onCopy: () -> Unit, onOpenBrowser: () -> Unit) {
+private fun Ready(
+    state: PickerState.Ready,
+    onOpenIn: (MapApp) -> Unit,
+    onCopy: () -> Unit,
+    onOpenBrowser: () -> Unit,
+    onNewtMaps: ((Boolean) -> Unit)?,
+) {
     val place = state.place
     Heading(place.name ?: "Dropped pin")
     place.address?.let { Text(it, style = MaterialTheme.typography.titleLarge) }
     Text(coordinates(place), style = MaterialTheme.typography.titleMedium)
-    if (state.apps.isEmpty()) {
+    if (onNewtMaps != null) {
+        BigButton("Directions", primary = true) { onNewtMaps(true) }
+        BigButton("Show on map", primary = true) { onNewtMaps(false) }
+    }
+    if (state.apps.isEmpty() && onNewtMaps == null) {
         Text(
             "No map app is installed. Install Organic Maps, CoMaps or Magic Earth.",
             style = MaterialTheme.typography.bodyLarge,
         )
     }
-    state.apps.forEach { app -> BigButton("Open in ${app.label}", primary = true) { onOpenIn(app) } }
+    // Newt Maps' own buttons lead when there; the other apps are the way out.
+    state.apps.forEach { app -> BigButton("Open in ${app.label}", primary = onNewtMaps == null) { onOpenIn(app) } }
     BigButton("Copy coordinates", onClick = onCopy)
     BigButton("Open in browser", onClick = onOpenBrowser)
 }

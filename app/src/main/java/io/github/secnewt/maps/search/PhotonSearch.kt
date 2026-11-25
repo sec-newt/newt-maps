@@ -18,7 +18,16 @@ import kotlin.math.sqrt
  * One place a search found. [miles] is how far it is from where I am (or the map), when
  * known. [saved] marks one of my own saved places (or home).
  */
-data class SearchHit(val name: String, val address: String, val lat: Double, val lng: Double, val miles: Double?, val saved: Boolean = false)
+data class SearchHit(
+    val name: String,
+    val address: String,
+    val lat: Double,
+    val lng: Double,
+    val miles: Double?,
+    val saved: Boolean = false,
+    /** A piece of road (Photon finds "Marilla Street" for "1500 Marilla"). */
+    val road: Boolean = false,
+)
 
 sealed interface SearchOutcome {
     /** [shortenedTo] is set when nothing matched the whole search and these are for fewer words. */
@@ -40,7 +49,24 @@ sealed interface SearchOutcome {
 class PhotonSearch(
     private val transport: Transport = HttpTransport(),
     private val baseUrl: String = BASE_URL,
+    private val reverseUrl: String = REVERSE_URL,
 ) {
+    /** The (city, state) at [near], or null if Photon can't say. */
+    fun area(near: Pair<Double, Double>): Pair<String?, String?>? = try {
+        val body = transport.get("$reverseUrl?lat=${near.first}&lon=${near.second}&lang=en")
+        val features = JSONObject(body).getJSONArray("features")
+        if (features.length() == 0) {
+            null
+        } else {
+            val p = features.getJSONObject(0).getJSONObject("properties")
+            (p.text("city") to p.text("state")).takeIf { it.second != null }
+        }
+    } catch (_: IOException) {
+        null
+    } catch (_: JSONException) {
+        null
+    }
+
     fun search(text: String, near: Pair<Double, Double>?): SearchOutcome {
         // Photon's lat/lon only nudges the ranking, so "coffee broadway" can come back
         // full of places in other states. Look around me first, and only then everywhere.
@@ -112,7 +138,7 @@ class PhotonSearch(
             } else {
                 SearchHit(street ?: city ?: return@mapNotNull null, if (street != null) city.orEmpty() else "", lat, lng, null)
             }
-            hit.copy(miles = near?.let { miles(it.first, it.second, lat, lng) })
+            hit.copy(miles = near?.let { miles(it.first, it.second, lat, lng) }, road = p.optString("osm_key") == "highway")
         }
     }
 
@@ -133,9 +159,10 @@ class PhotonSearch(
 
     companion object {
         const val BASE_URL = "https://photon.komoot.io/api/"
+        const val REVERSE_URL = "https://photon.komoot.io/reverse"
         private const val LIMIT = 10
         private const val MAX_DROPS = 3
-        private const val NEARBY_MILES = 60.0
+        internal const val NEARBY_MILES = 60.0
         private const val LOCAL_MILES = 30.0
 
         /** Photon's bbox (west,south,east,north) reaching about [LOCAL_MILES] each way. */

@@ -1,8 +1,11 @@
 package io.github.secnewt.maps.nav
 
 import android.content.Context
+import android.media.AudioAttributes
+import android.speech.tts.TextToSpeech
 import com.stadiamaps.ferrostar.core.AlternativeRouteProcessor
 import com.stadiamaps.ferrostar.core.AndroidTtsObserver
+import com.stadiamaps.ferrostar.core.AndroidTtsStatusListener
 import com.stadiamaps.ferrostar.core.FerrostarCore
 import com.stadiamaps.ferrostar.core.NavigationState
 import com.stadiamaps.ferrostar.core.http.OkHttpClientProvider.Companion.toOkHttpClientProvider
@@ -12,6 +15,7 @@ import com.stadiamaps.ferrostar.core.location.SimulatedLocationProvider
 import com.stadiamaps.ferrostar.core.location.toUserLocation
 import com.stadiamaps.ferrostar.core.withJsonOptions
 import java.time.Duration
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
@@ -52,7 +56,18 @@ class Navigator(context: Context) {
     private val http = plainHttp.toOkHttpClientProvider()
     // The speech engine starts only when asked to; without start() every turn is silent.
     // Started now, so it's ready by the first spoken turn (it takes a moment to wake up).
-    private val voice = AndroidTtsObserver(app).also { it.start() }
+    // Once it's up, turns are spoken as navigation, not music: Ferrostar asks Android to quiet
+    // other audio while it speaks, and speech played as music got quieted along with it.
+    private val voice = AndroidTtsObserver(app).also { observer ->
+        observer.statusObserver = object : AndroidTtsStatusListener {
+            override fun onTtsInitialized(tts: TextToSpeech?, status: Int) {
+                tts?.setAudioAttributes(VoiceAudio.attributes())
+            }
+            override fun onTtsSpeakError(utteranceId: String, status: Int) {}
+            override fun onTtsShutdownAndRelease() {}
+        }
+        observer.start()
+    }
 
     private var options: RouteOptions? = null
     private var core: FerrostarCore? = null
@@ -88,7 +103,10 @@ class Navigator(context: Context) {
         // Android's last known location can be hours old (from wherever GPS last ran);
         // routing from there draws a line that starts somewhere else. Wait for a new fix.
         val here = location.lastLocation()?.takeIf { FixAge.isFresh(it.elapsedRealtimeNanos, android.os.SystemClock.elapsedRealtimeNanos()) }
-            ?: withTimeoutOrNull(15_000) { location.locationUpdates(1000).first() }
+            // The updates start by repeating that same last known fix, so skip old ones there too.
+            ?: withTimeoutOrNull(15_000) {
+                FixAge.firstFresh(location.locationUpdates(1000), { it.elapsedRealtimeNanos }, android.os.SystemClock::elapsedRealtimeNanos)
+            }
             ?: throw RouteProblem("Can't tell where you are yet. Step outside or wait a moment, then try again.")
         val routes = try {
             // Off the main thread: Ferrostar reads the server's answer on whatever thread
@@ -181,6 +199,18 @@ object FixAge {
 
     /** A location fix is fresh enough to route from when it's under 30 seconds old. */
     fun isFresh(fixNanos: Long, nowNanos: Long): Boolean = nowNanos - fixNanos in 0..MAX_NANOS
+
+    /** The first fix from [fixes] that's fresh when it arrives; old ones are skipped. */
+    suspend fun <T> firstFresh(fixes: Flow<T>, nanosOf: (T) -> Long, now: () -> Long): T =
+        fixes.first { isFresh(nanosOf(it), now()) }
+}
+
+/** How spoken turns play: as navigation speech, which Android doesn't turn down for others. */
+object VoiceAudio {
+    fun attributes(): AudioAttributes = AudioAttributes.Builder()
+        .setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
+        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+        .build()
 }
 
 /**

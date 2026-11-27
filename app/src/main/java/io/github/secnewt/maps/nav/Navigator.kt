@@ -196,9 +196,11 @@ class Navigator(context: Context) {
 /** Kept apart from [Navigator] so it can be tested without Ferrostar's native code. */
 object FixAge {
     private const val MAX_NANOS = 30_000_000_000L
+    // Some phones' GPS stamps a fix a little ahead of the app's clock; those are new, not old.
+    private const val SKEW_NANOS = 2_000_000_000L
 
     /** A location fix is fresh enough to route from when it's under 30 seconds old. */
-    fun isFresh(fixNanos: Long, nowNanos: Long): Boolean = nowNanos - fixNanos in 0..MAX_NANOS
+    fun isFresh(fixNanos: Long, nowNanos: Long): Boolean = nowNanos - fixNanos in -SKEW_NANOS..MAX_NANOS
 
     /** The first fix from [fixes] that's fresh when it arrives; old ones are skipped. */
     suspend fun <T> firstFresh(fixes: Flow<T>, nanosOf: (T) -> Long, now: () -> Long): T =

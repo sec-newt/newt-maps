@@ -16,7 +16,9 @@ class FixAgeTest {
 
     @Test fun oldFixIsNotFresh() = assertFalse(FixAge.isFresh(now - 20 * 60 * second, now))
 
-    @Test fun fixFromTheFutureIsNotFresh() = assertFalse(FixAge.isFresh(now + second, now))
+    @Test fun fixStampedJustAheadOfTheClockIsFresh() = assertTrue(FixAge.isFresh(now + second / 100, now))
+
+    @Test fun fixFromWellIntoTheFutureIsNotFresh() = assertFalse(FixAge.isFresh(now + 60 * second, now))
 
     // Android's location updates start by repeating the last known fix, which can be from
     // wherever GPS last ran (the start of the trip). Routing must skip it and wait for a new one.

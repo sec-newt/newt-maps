@@ -34,8 +34,12 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Newt">
 
+        <!-- Turning the phone keeps the same screen instead of starting it over, so the
+             route, the place card and a trip in progress (voice, location) carry on.
+             Compose redraws for the new shape on its own. -->
         <activity
             android:name=".MainActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

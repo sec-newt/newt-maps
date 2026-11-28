@@ -25,7 +25,8 @@ If Nominatim can't find the place, the "Couldn't find it" screen offers **Ask Go
 phone hasn't had a new location in the last 30 seconds, it waits for one (up to 15
 seconds) instead of using an old one. Turns are spoken as directions, like other map
 apps, so music from other apps gets quieter while it talks, and its own voice doesn't.
-Over car Bluetooth, the phone's media volume sets how loud it is.
+Over car Bluetooth, the phone's media volume sets how loud it is. Turning the phone
+sideways keeps the route, the place shown on the map and a trip in progress.
 
 **One-time setup:** Android won't let a third-party app take google.com or apple.com links
 by itself. Open Newt Maps → **Turn on link opening** → Add links → turn on every link.
